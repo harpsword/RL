@@ -1,0 +1,15 @@
+{
+    "game":{
+        "gamename":"Assault-v0",
+        "episode":1000,
+        "timesteplimit":2000,
+        "epsilon":0.1
+
+    },
+    "optimizer":{
+        "args":{
+            "lr":0.01
+        },
+        "type":"rmsprop"
+    }
+}
