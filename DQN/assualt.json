@@ -2,9 +2,7 @@
     "game":{
         "gamename":"Assault-v0",
         "episode":1000,
-        "timesteplimit":2000,
-        "epsilon":0.1
-
+        "timesteplimit":2000
     },
     "optimizer":{
         "args":{
