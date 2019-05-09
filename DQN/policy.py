@@ -26,9 +26,10 @@ class Q_Net(nn.Module):
         self.fc1 = nn.Linear(9*9*32, 256)
         self.fc2 = nn.Linear(256, ac_space)
 
-    def forward(self, x):
+    def forward(self, x:torch.tensor):
         x = F.relu(self.conv1(x))
         x = F.relu(self.conv2(x))
+        x = x.view(-1, 9*9*32)
         x = F.relu(self.fc1(x))
         return self.fc2(x)
 
@@ -41,5 +42,6 @@ def process(x_list):
         x = trans(x)
         x = x.reshape(1, 1, 84, 84)
         new_xlist.append(x)
-        x = torch.cat(new_xlist, 1)
+    x = torch.cat(new_xlist, 1)
+    return x
 

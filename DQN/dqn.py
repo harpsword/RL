@@ -1,16 +1,18 @@
 
 import os
+import time
 import json
 import click
 import gym
 import logging
 import torch
 import numpy as np
+import torch.nn.functional as F
 
 from policy import Q_Net, process
 from data import Data
 
-LogFoler = os.path.join(os.getcwd(), 'log')
+LogFolder = os.path.join(os.getcwd(), 'log')
 FRAME_SKIP = 4
 GAMMA = 0.9
 init_epsilon = 0.5
@@ -20,22 +22,28 @@ final_epsilon = 0.1
 
 # training
 batchsize = 32
+lr = 0.01
 
 # experience replay storage
 D = Data()
 
 def train(cfg, model, env):
+    action_n = env.action_space.n
     env.frameskip = 1
     epsilon = init_epsilon 
-    optimizer = torch.optim.rmsprop(model.parameters())
+    optimizer = torch.optim.RMSprop(model.parameters())
     for episode in range(1, cfg['game']['episode']):
+        t0 = time.time()
         obs = env.reset()
         obs_list = [obs, obs, obs, obs]
-        state_now = process(sequence, cfg)
+        state_now = process(obs_list)
         
         break_is_true = False
+        reward_one_episode = 0
         for step in range(cfg['game']['timesteplimit']):
-            if np.randon.rand() <= epsilon:
+            if step % 100 == 0:
+                print("step:", step, "time:", time.time()-t0)
+            if np.random.rand() <= epsilon:
                 action = np.random.randint(env.action_space.n)
             else:
                 action = model(state_now).argmax().item()
@@ -52,25 +60,44 @@ def train(cfg, model, env):
                 # like start state obs_list, stack more end state together
                 obs_list.append(obs_list[-1])
             sequence = [state_now, action, ep_r, process(obs_list), done]
+            reward_one_episode += ep_r
             D.push(sequence)
 
             # sample data
             # train model
             if len(D.data) >= batchsize:
-                selected_data = np.random.sample(D.data, batchsize)
+                import random
+                selected_data = random.sample(D.data, batchsize)
                 state_batch = [batch[0] for batch in selected_data]
-                target = []
-                for i in range(len(batchsize)):
-                    if selected_data[i][4]:
-                        target.append(selected_data[i][2])
+                target_q_value = None
+                for i in range(batchsize):
+                    state_ = selected_data[i][0]
+                    action_ = selected_data[i][1]
+                    reward_ = selected_data[i][2]
+                    next_state_ = selected_data[i][3]
+                    done_ = selected_data[i][4]
+                    q_eval = model(state_)
+                    if target_q_value is None:
+                        target_q_value = q_eval
                     else:
-                        target.append(selected_data[i][2]+GAMMA*model(state_batch[i]).max().item())
-                # build dataset
-                # build dataloader
-                # update
+                        target_q_value = torch.cat((target_q_value, q_eval))
+                    # only one element is different to q_eval
+                    if done_:
+                        target_q_value[-1][action_] = reward_
+                    else:
+                        target_q_value[-1][action_] = reward_ + GAMMA*model(next_state_).max().item()
+                x_train = torch.cat(state_batch)
+                y_train = target_q_value
+                # dataset = Data.TensorDataset(state_batch, target_q_value)
+                optimizer.zero_grad()
+                predicted_q_value = model(x_train)
+                loss = F.mse_loss(predicted_q_value, y_train)
+                loss.backward()
+                optimizer.step()
 
             if break_is_true:
                 break
+        print("Episode:", episode, '|Reward:', reward_one_episode)
 
 
 def setup_logging(logfile):
@@ -93,9 +120,8 @@ def setup_logging(logfile):
 @click.option('--expfile')
 @click.option('--logfile', default='default.log', help='the name of log file')
 def main(expfile, logfile):
-    assert exp_file is not None
-    if exp_file:
-        with open(exp_file, 'r') as f:
+    if expfile:
+        with open(expfile, 'r') as f:
             cfg = json.loads(f.read())
     setup_logging(logfile)
     env = gym.make(cfg['game']['gamename'])
