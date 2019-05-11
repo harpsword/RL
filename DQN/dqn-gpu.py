@@ -23,7 +23,6 @@ epsilon_final = 0.1
 
 # training
 batchsize = 32
-lr = 0.01
 
 # experience replay storage
 D = Data()
@@ -36,7 +35,7 @@ def train(cfg, model, env):
     action_n = env.action_space.n
     env.frameskip = 1
     epsilon = epsilon_init
-    optimizer = torch.optim.RMSprop(model.parameters(), lr=lr)
+    optimizer = torch.optim.RMSprop(model.parameters(), lr=cfg['optimizer']['args']['lr'])
     timestep_accumulate = 0
     for episode in range(1, cfg['game']['episode']):
         t0 = time.time()
