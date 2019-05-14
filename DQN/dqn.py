@@ -14,7 +14,7 @@ from data import Data
 
 LogFolder = os.path.join(os.getcwd(), 'log')
 FRAME_SKIP = 4
-GAMMA = 0.9
+GAMMA = 0.99
 init_epsilon = 0.5
 decay_every_timestep = 100000
 epsilon_decay = 0.5
@@ -22,7 +22,10 @@ final_epsilon = 0.1
 
 # training
 batchsize = 32
-lr = 0.01
+lr = 0.00025
+
+replay_start_size = 50000
+
 
 # experience replay storage
 D = Data()
@@ -31,7 +34,7 @@ def train(cfg, model, env):
     action_n = env.action_space.n
     env.frameskip = 1
     epsilon = init_epsilon 
-    optimizer = torch.optim.RMSprop(model.parameters())
+    optimizer = torch.optim.RMSprop(model.parameters(), lr=lr)
     for episode in range(1, cfg['game']['episode']):
         t0 = time.time()
         obs = env.reset()
@@ -65,7 +68,7 @@ def train(cfg, model, env):
 
             # sample data
             # train model
-            if len(D.data) >= batchsize:
+            if len(D.data) >= replay_start_size:
                 import random
                 selected_data = random.sample(D.data, batchsize)
                 state_batch = [batch[0] for batch in selected_data]
