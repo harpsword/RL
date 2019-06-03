@@ -64,7 +64,9 @@ def train(cfg, model, env):
                 # when len(obs_list) < 4, done=True
                 # like start state obs_list, stack more end state together
                 obs_list.append(obs_list[-1])
-            sequence = [state_now, action, ep_r, process(obs_list), done]
+            state_after = process(obs_list)
+            sequence = [state_now, action, ep_r, state_after, done]
+            state_now = state_after
             reward_one_episode += ep_r
             D.push(sequence)
 

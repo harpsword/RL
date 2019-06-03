@@ -1,6 +1,6 @@
-
 # paper
-# ref: Mnih et al. 2013. Playing Atari with Deep Reinforcement Learning
+# ref: Mnih et al. 2015. Human-level control through deep reinforcement learning
+# add 30 no-op to trainning
 import os
 import time
 import json
@@ -11,7 +11,7 @@ import torch
 import numpy as np
 import torch.nn.functional as F
 
-from policy import Q_Net, process, ProcessUnit
+from policy2015 import Q_Net, ProcessUnit
 from data import Data
 
 LogFolder = os.path.join(os.getcwd(), 'log')
@@ -23,6 +23,7 @@ epsilon_decay = 0.5
 final_epsilon = 0.1
 
 # training
+target_network_update_frequency = 10000
 batchsize = 32
 lr = 0.00025
 replay_start_size = 50000
