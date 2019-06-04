@@ -1,6 +1,7 @@
 # paper
 # ref: Mnih et al. 2015. Human-level control through deep reinforcement learning
 # add 30 no-op to trainning
+# note: no train()/eval() 
 import os
 import time
 import json
@@ -23,6 +24,7 @@ final_epsilon = 0.1
 final_exploration_frame = int(1e6)
 no_op_max = 30
 max_frames_one_episode = 18000
+test_every_episode = 300
 # training
 target_network_update_frequency = 10000
 batchsize = 32
@@ -35,14 +37,44 @@ momentum = 0.95
 squared_gradient_momentum = 0.95
 min_squaured_gradient = 0.01
 # buffer
-replay_start_size = 500
+replay_start_size = 50000
 
 # experience replay storage
 D = Data()
 
-def train(model, target_model, env):
-    frame_count = 0
+gpu_id = torch.cuda.current_device()
+print("using GPU %s" % gpu_id)
+device = torch.device(gpu_id)
+
+def test(model, gamename):
+    env = gym.make(gamename)
+    no_op_frames = np.random.randint(FRAME_SKIP+1, no_op_max)
+    pu = ProcessUnit(FRAME_SKIP)
+    obs = env.reset()
+    pu.step(obs)
+    reward_one_episode = 0
+    for i in range(no_op_frames):
+        obs, reward, done, _ = env.step(0)
+        pu.step(obs)
+        reward_one_episode += reward
+    break_or_not = False
+    for i in range(max_frames_one_episode):
+        action = model(pu.to_torch_tensor().to(device)).max().item()
+        for j in range(FRAME_SKIP):
+            obs, reward, done, _ = env.step(action)
+            pu.step(obs)
+            if done:
+                break_or_not = True
+                break
+            reward_one_episode += reward
+        if break_or_not:
+            break
+    return reward_one_episode
+
+
+def train(model, target_model, env, gamename):
     update_times = 0
+    frame_count = 0
     action_n = env.action_space.n
     env.frameskip = 1
     epsilon = init_epsilon 
@@ -66,13 +98,13 @@ def train(model, target_model, env):
         previous_frame_list = pu.to_torch_tensor()
         for step in range(max_frames_one_episode):
             frame_count += 1
-            if step % 100 == 0:
-                print("step:", step, "time:", time.time()-t0)
+            #if step % 100 == 0:
+            #    print("step:", step, "time:", time.time()-t0)
 
             if np.random.rand() <= epsilon:
                 action = np.random.randint(env.action_space.n)
             else:
-                action = model(previous_frame_list).argmax().item()
+                action = model(previous_frame_list.to(device)).argmax().item()
             ep_r = 0
             for i in range(FRAME_SKIP):
                 obs, reward, done, _ = env.step(action)
@@ -107,11 +139,11 @@ def train(model, target_model, env):
                     if done_:
                         q_target_list[i] = reward_
                     else:
-                        q_target_list[i] = reward_ + GAMMA * target_model(next_state_).max().item()
+                        q_target_list[i] = reward_ + GAMMA * target_model(next_state_.to(device)).max().item()
                 state_batch = [batch[0] for batch in selected_data]
                 x_train = torch.cat(state_batch)
                 optimizer.zero_grad()
-                predicted_q_value = model(x_train)
+                predicted_q_value = model(x_train.to(device))
                 # build y_train
                 action_batch = [batch[1] for batch in selected_data]
                 y_train = predicted_q_value.clone()
@@ -124,16 +156,20 @@ def train(model, target_model, env):
 
             if break_is_true:
                 break
-        epsilon = init_epsilon - (init_epsilon - final_epsilon) * (frame_count/final_exploration_frame)
-        if epsilon < final_epsilon:
-            epsilon = final_epsilon
         if update_times > target_network_update_frequency:
             update_times = 0
             target_model.load_state_dict(model.state_dict())
-        logging.info("Episode:%s | Reward: %s | timestep: %s/%s | epsilon: %.2f" %(episode, reward_one_episode, frame_count, frame_max, epsilon))
+        epsilon = init_epsilon - (init_epsilon - final_epsilon) * (frame_count/final_exploration_frame)
+        if episode % test_every_episode == 0:
+            r = test(model, gamename)
+            logging.info("test result: %s" % r)
+        if epsilon < final_epsilon:
+            epsilon = final_epsilon
         if episode % 5 == 0:
-            print("Episode:%s | Reward: %s | timestep: %s/%s | epsilon: %.2f" %(episode, reward_one_episode, frame_count, frame_max, epsilon))
-        print("Episode:", episode, '|Reward:', reward_one_episode, "|frame:%.5f" % (frame_count/frame_max))
+            logging.info("Episode:%s | Reward: %s | timestep: %s/%s | epsilon: %.2f" %(episode, reward_one_episode, frame_count, frame_max, epsilon))
+        #if episode % 5 == 0:
+        #    print("Episode:%s | Reward: %s | timestep: %s/%s | epsilon: %.2f" %(episode, reward_one_episode, frame_count, frame_max, epsilon))
+        #print("Episode:", episode, '|Reward:', reward_one_episode, "|frame:%.5f" % (frame_count/frame_max))
 
 
 def setup_logging(logfile):
@@ -158,10 +194,11 @@ def setup_logging(logfile):
 def main(gamename, logfile):
     setup_logging(logfile)
     env = gym.make(gamename)
-    model = Q_Net(env.action_space.n)
-    target_model = Q_Net(env.action_space.n)
+    logging.info("gamename:%s" % gamename)
+    model = Q_Net(env.action_space.n).to(device)
+    target_model = Q_Net(env.action_space.n).to(device)
     target_model.load_state_dict(model.state_dict())
-    train(model, target_model, env)
+    train(model, target_model, env, gamename)
 
 
 if __name__ == '__main__':
