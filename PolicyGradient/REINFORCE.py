@@ -67,7 +67,7 @@ def train(model, Generation, lr):
             train_input = torch.from_numpy(State_list[indx]).float().reshape(input_shape)
             output = model(train_input)
             target = torch.tensor(Action_list[indx]).reshape((1))
-            loss = criteria(output, target)
+            loss = criteria(output, target) * G_list[indx]
             loss.backward()
             optimizer.step()
     return model
