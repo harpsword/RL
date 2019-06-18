@@ -45,11 +45,13 @@ D = Data()
 gpu_id = torch.cuda.current_device()
 print("using GPU %s" % gpu_id)
 device = torch.device(gpu_id)
+model_storage_path = '/home2/yyl/model/es-rl/'
+
 
 def test(model, gamename):
     env = gym.make(gamename)
     no_op_frames = np.random.randint(FRAME_SKIP+1, no_op_max)
-    pu = ProcessUnit(FRAME_SKIP)
+    pu = ProcessUnit(4, FRAME_SKIP)
     obs = env.reset()
     pu.step(obs)
     reward_one_episode = 0
@@ -83,7 +85,7 @@ def train(model, target_model, env, gamename):
     for episode in range(1, generation):
         t0 = time.time()
         obs = env.reset()
-        pu = ProcessUnit(FRAME_SKIP)
+        pu = ProcessUnit(4, FRAME_SKIP)
         pu.step(obs)
 
         break_is_true = False
@@ -97,10 +99,6 @@ def train(model, target_model, env, gamename):
         
         previous_frame_list = pu.to_torch_tensor()
         for step in range(max_frames_one_episode):
-            frame_count += 1
-            #if step % 100 == 0:
-            #    print("step:", step, "time:", time.time()-t0)
-
             if np.random.rand() <= epsilon:
                 action = np.random.randint(env.action_space.n)
             else:
@@ -108,6 +106,7 @@ def train(model, target_model, env, gamename):
             ep_r = 0
             for i in range(FRAME_SKIP):
                 obs, reward, done, _ = env.step(action)
+                frame_count += 1
                 pu.step(obs)
                 ep_r += reward
                 if done:
@@ -122,8 +121,7 @@ def train(model, target_model, env, gamename):
 
             if step % update_frequency != (update_frequency - 1):
                 continue
-            # sample data
-            # train model
+            # sample data, train model
             if len(D.data) >= replay_start_size:
                 import random
                 selected_data = random.sample(D.data, batchsize)
@@ -167,10 +165,8 @@ def train(model, target_model, env, gamename):
             epsilon = final_epsilon
         if episode % 5 == 0:
             logging.info("Episode:%s | Reward: %s | timestep: %s/%s | epsilon: %.2f" %(episode, reward_one_episode, frame_count, frame_max, epsilon))
-        #if episode % 5 == 0:
-        #    print("Episode:%s | Reward: %s | timestep: %s/%s | epsilon: %.2f" %(episode, reward_one_episode, frame_count, frame_max, epsilon))
-        #print("Episode:", episode, '|Reward:', reward_one_episode, "|frame:%.5f" % (frame_count/frame_max))
-
+        if episode % 100 == 0:
+            torch.save(model.state_dict(), model_storage_path+"dqn2015"+gamename+'.pt')
 
 def setup_logging(logfile):
     if logfile == 'default.log':
