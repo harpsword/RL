@@ -61,7 +61,7 @@ def test(model, gamename):
         reward_one_episode += reward
     break_or_not = False
     for i in range(max_frames_one_episode):
-        action = model(pu.to_torch_tensor().to(device)).max().item()
+        action = model(pu.to_torch_tensor().to(device)).argmax().item()
         for j in range(FRAME_SKIP):
             obs, reward, done, _ = env.step(action)
             pu.step(obs)
