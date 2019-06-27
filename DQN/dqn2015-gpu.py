@@ -15,7 +15,6 @@ import torch.multiprocessing as mp
 
 from policy2015 import Q_Net
 from preprocess2015 import ProcessUnit
-from data import Data
 try:
      mp.set_start_method('spawn')
 except RuntimeError:
@@ -47,7 +46,7 @@ replay_start_size = 50000
 ncpu = 10
 
 # experience replay storage
-D = Data()
+from data import D
 
 gpu_id = torch.cuda.current_device()
 print("using GPU %s" % gpu_id)

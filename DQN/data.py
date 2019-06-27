@@ -17,6 +17,4 @@ class Data(object):
         return self.data[indx]
 
 
-
-
-
+D = Data()
