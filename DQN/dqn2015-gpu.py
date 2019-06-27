@@ -11,10 +11,15 @@ import logging
 import torch
 import numpy as np
 import torch.nn.functional as F
+import torch.multiprocessing as mp
 
 from policy2015 import Q_Net
 from preprocess2015 import ProcessUnit
 from data import Data
+try:
+     mp.set_start_method('spawn')
+except RuntimeError:
+    pass
 
 LogFolder = os.path.join(os.getcwd(), 'log')
 FRAME_SKIP = 4
@@ -24,7 +29,7 @@ final_epsilon = 0.1
 final_exploration_frame = int(1e6)
 no_op_max = 30
 max_frames_one_episode = 18000
-test_every_episode = 300
+test_every_episode = 50 
 # training
 target_network_update_frequency = 10000
 batchsize = 32
@@ -38,6 +43,8 @@ squared_gradient_momentum = 0.95
 min_squaured_gradient = 0.01
 # buffer
 replay_start_size = 50000
+# the number of processes in Pool
+ncpu = 10
 
 # experience replay storage
 D = Data()
@@ -45,6 +52,7 @@ D = Data()
 gpu_id = torch.cuda.current_device()
 print("using GPU %s" % gpu_id)
 device = torch.device(gpu_id)
+cpu_device = torch.device('cpu')
 model_storage_path = '/home2/yyl/model/es-rl/'
 
 
@@ -75,6 +83,7 @@ def test(model, gamename):
 
 
 def train(model, target_model, env, gamename):
+    pool = mp.Pool(processes=ncpu)
     update_times = 0
     frame_count = 0
     action_n = env.action_space.n
@@ -159,7 +168,11 @@ def train(model, target_model, env, gamename):
             target_model.load_state_dict(model.state_dict())
         epsilon = init_epsilon - (init_epsilon - final_epsilon) * (frame_count/final_exploration_frame)
         if episode % test_every_episode == 0:
-            r = test(model, gamename)
+            test_jobs = [pool.apply_async(test, (model, gamename)) for iii in range(30)]
+            r_list = []
+            for j in test_jobs:
+                r_list.append(j.get())
+            r = np.array(r_list).mean()
             logging.info("test result: %s" % r)
         if epsilon < final_epsilon:
             epsilon = final_epsilon
