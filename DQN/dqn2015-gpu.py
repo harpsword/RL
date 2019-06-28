@@ -12,6 +12,8 @@ import torch
 import numpy as np
 import torch.nn.functional as F
 import torch.multiprocessing as mp
+from data import Data
+from test_model import get_reward_from_gamename
 
 from policy2015 import Q_Net
 from preprocess2015 import ProcessUnit
@@ -45,13 +47,12 @@ replay_start_size = 50000
 # the number of processes in Pool
 ncpu = 10
 
-# experience replay storage
-from data import D
 
 gpu_id = torch.cuda.current_device()
 print("using GPU %s" % gpu_id)
-device = torch.device(gpu_id)
+#device = torch.device(gpu_id)
 cpu_device = torch.device('cpu')
+device = cpu_device
 model_storage_path = '/home2/yyl/model/es-rl/'
 
 
@@ -68,7 +69,7 @@ def test(model, gamename):
         reward_one_episode += reward
     break_or_not = False
     for i in range(max_frames_one_episode):
-        action = model(pu.to_torch_tensor().to(device)).argmax().item()
+        action = model(pu.to_torch_tensor().to(cpu_device)).argmax().item()
         for j in range(FRAME_SKIP):
             obs, reward, done, _ = env.step(action)
             pu.step(obs)
@@ -82,6 +83,7 @@ def test(model, gamename):
 
 
 def train(model, target_model, env, gamename):
+    D = Data()
     pool = mp.Pool(processes=ncpu)
     update_times = 0
     frame_count = 0
@@ -167,12 +169,14 @@ def train(model, target_model, env, gamename):
             target_model.load_state_dict(model.state_dict())
         epsilon = init_epsilon - (init_epsilon - final_epsilon) * (frame_count/final_exploration_frame)
         if episode % test_every_episode == 0:
-            test_jobs = [pool.apply_async(test, (model, gamename)) for iii in range(30)]
+            test_jobs = [pool.apply_async(get_reward_from_gamename, (model.to(cpu_device), gamename)) for iii in range(30)]
             r_list = []
             for j in test_jobs:
-                r_list.append(j.get())
+                r_list.append(j.get()[0])
             r = np.array(r_list).mean()
+            logging.info(str(r_list))
             logging.info("test result: %s" % r)
+            model.to(device)
         if epsilon < final_epsilon:
             epsilon = final_epsilon
         if episode % 5 == 0:

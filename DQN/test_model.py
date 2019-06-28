@@ -14,6 +14,42 @@ model_storage_path = '/home2/yyl/model/es-rl/'
 import time
 FRAME_SKIP = 4
 
+def get_reward_from_gamename(model, gamename):
+    env = gym.make(gamename)
+    env.frameskip = 1
+    observation = env.reset()
+    break_is_true = False
+    ep_r = 0.
+    frame_count = 0
+    ProcessU = ProcessUnit(4, FRAME_SKIP)
+    ProcessU.step(observation)
+    ep_max_step = 0
+       
+    if test == True:
+        ep_max_step = 108000
+    #no_op_frames = np.random.randint(FRAME_SKIP+1, 30)
+    no_op_frames = np.random.randint(0, 30)
+    for i in range(no_op_frames):
+        # TODO: I think 0 is Null Action
+        # but have not found any article about the meaning of every actions
+        observation, reward, done, _ = env.step(0)
+        ProcessU.step(observation)
+        frame_count += 1
+        
+    for step in range(ep_max_step):
+        action = model(ProcessU.to_torch_tensor())[0].argmax().item()
+        for i in range(FRAME_SKIP):
+            observation, reward , done, _ = env.step(action)
+            ProcessU.step(observation)
+            frame_count += 1
+            ep_r += reward
+            if done:
+                break_is_true = True
+        if break_is_true:
+            break
+    return ep_r, frame_count
+
+
 def get_reward(model, env):
     env.frameskip = 1
     observation = env.reset()
@@ -27,7 +63,7 @@ def get_reward(model, env):
         ProcessU.step(observation)
         
         if test == True:
-            ep_max_step = 18000
+            ep_max_step = 108000
         #no_op_frames = np.random.randint(FRAME_SKIP+1, 30)
         no_op_frames = np.random.randint(0, 30)
         for i in range(no_op_frames):
