@@ -1,19 +1,8 @@
 # model come from [mnih et al. 2015]
 import torch
 import torch.nn as nn
-import numpy as np
 import torch.nn.functional as F
-from collections import deque
 
-from torchvision import transforms
-
-trans = transforms.Compose(
-    [
-        transforms.Grayscale(),
-        transforms.Resize((84, 84)),
-        transforms.ToTensor()
-    ]
-)
 
 class Q_Net(nn.Module):
     '''
