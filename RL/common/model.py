@@ -1,4 +1,5 @@
 import torch
+import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -9,12 +10,13 @@ class Policy2015(nn.Module):
     batch size = N 
     '''
     def __init__(self, ac_space):
-        super(Q_Net, self).__init__()
+        super(Policy2015, self).__init__()
         self.conv1 = nn.Conv2d(4, 32, kernel_size=8, stride=4)
         self.conv2 = nn.Conv2d(32, 64, kernel_size=4, stride=2)
         self.conv3 = nn.Conv2d(64, 64, kernel_size=3, stride=1)
         self.fc1 = nn.Linear(7*7*64, 512)
         self.fc2 = nn.Linear(512, ac_space)
+        self.ac_space = ac_space
 
     def forward(self, x:torch.tensor):
         x = F.relu(self.conv1(x))
@@ -23,7 +25,12 @@ class Policy2015(nn.Module):
         x = x.view(-1, 7*7*64)
         x = F.relu(self.fc1(x))
         x = self.fc2(x)
-        return F.softmax(x, dim=1)
+        return x
+
+    def act(self, x):
+        x = self.forward(x)
+        x = F.softmax(x, dim=1)
+        return np.random.choice(self.ac_space, p=x.detach().numpy()[0])
 
 
 class Policy2013(nn.Module):
@@ -37,6 +44,7 @@ class Policy2013(nn.Module):
         self.conv2 = nn.Conv2d(16, 32, kernel_size=4, stride=2)
         self.fc1 = nn.Linear(9*9*32, 256)
         self.fc2 = nn.Linear(256, ac_space)
+        self.ac_space = ac_space
 
     def forward(self, x:torch.tensor):
         x = F.relu(self.conv1(x))
@@ -44,7 +52,13 @@ class Policy2013(nn.Module):
         x = x.view(-1, 9*9*32)
         x = F.relu(self.fc1(x))
         x = self.fc2(x)
-        return F.softmax(x, dim=1)
+        return x
+
+    def act(self, x):
+        x = self.forward(x)
+        x = F.softmax(x, dim=1)
+        return np.random.choice(self.ac_space, p=x.detach().numpy()[0])
+
 
 
 class Value(nn.Module):

@@ -21,6 +21,11 @@ generation = 1000000
 actor_lr = 1e-4
 critic_lr = 1e-4
 
+gpu_id = torch.cuda.current_device()
+gpu_device = torch.device(gpu_id)
+cpu_device = torch.device('cpu')
+device = gpu_device
+
 @ray.remote
 class Simulator(object):
 
@@ -93,15 +98,15 @@ def main(gamename):
     env = gym.make(gamename)
     action_n = env.action_space.n
     batch_size = Llocal * actor_number
-    critic = Value()
-    actor = Policy2013(action_n)
+    critic = Value().to(device)
+    actor = Policy2013(action_n).to(device)
     simulators = [Simulator.remote(gamename) for i in range(actor_number)]
 
     actor_optm = torch.optim.RMSprop(actor.parameters(), lr=actor_lr)
     critic_optm = torch.optim.RMSprop(critic.parameters(), lr=critic_lr)
 
     for g in range(generation):
-        rollout_ids = [s.rollout.remote(actor, critic, Llocal) for s in simulators]
+        rollout_ids = [s.rollout.remote(actor.to(cpu_device), critic.to(cpu_device), Llocal) for s in simulators]
         frame_list = []
         action_list = []
         R_list = []
@@ -111,9 +116,12 @@ def main(gamename):
             frame_list.extend(rollout[0])
             action_list.extend(rollout[1])
             R_list.extend(rollout[2])
-        input_state = torch.cat(frame_list)
-        actor_target = torch.tensor(action_list).long()
-        critic_target = torch.tensor(R_list).reshape(batch_size, 1).float()
+        input_state = torch.cat(frame_list).to(device)
+        actor_target = torch.tensor(action_list).to(device).long()
+        critic_target = torch.tensor(R_list).reshape(batch_size, 1).to(device).float()
+
+        actor.to(device)
+        critic.to(device)
 
         critic_optm.zero_grad()
         critic_predict = critic(input_state)
@@ -123,7 +131,7 @@ def main(gamename):
 
         actor_optm.zero_grad()
         actor_predict = actor(input_state)
-        rescale_loss = (critic_target.detach()-critic_predict.detach()).reshape(batch_size, 1).mm(torch.ones(1, action_n))
+        rescale_loss = (critic_target.detach()-critic_predict.detach()).reshape(batch_size, 1).mm(torch.ones(1, action_n).to(device))
         actor_loss_tmp = F.log_softmax(actor_predict, dim=1) * rescale_loss
         actor_loss = F.nll_loss(actor_loss_tmp, actor_target)
         actor_loss.backward()
