@@ -26,29 +26,41 @@ class Simulator(object):
 
     def __init__(self, gamename):
         self.env = gym.make(gamename)
+        self.obs = self.env.reset()
+        self.start = False
+
+    def start_game(self):
+        no_op_frames = np.random.randint(1,30)
+        self.pu = ProcessUnit(4, FrameSkip)
+        obs = self.env.reset()
+        self.pu.step(obs)
+        for i in range(no_op_frames):
+            obs, r, done, _ = self.env.step(0)
+            self.pu.step(obs)
+            if done:
+                return False
+        self.start = True
+        return True
 
     def rollout(self, actor, critic, Llocal):
         """
         if Llocal is None: test mission
         else: collect data
-
         """
+        while not self.start:
+            self.start_game()
+        if Llocal is None:
+            self.start_game()
+
         Lmax = 108000 if Llocal is None else Llocal
-        no_op_frames = np.random.randint(1, 30)
-        pu = ProcessUnit(4, 4)
-        obs = self.env.reset()
-        pu.step(obs)
-        reward = 0
-        for i in range(no_op_frames):
-            obs, r, done, _ = self.env.step(0)
-            pu.step(obs)
         frame_list = []
         action_list = []
         done_list = []
         reward_list = []
         break_or_not = False
+        reward = 0
         for i in range(Lmax):
-            frame_now = pu.to_torch_tensor()
+            frame_now = self.pu.to_torch_tensor()
             # stochastic policy
             action = actor.act(frame_now)
             r_ = 0
@@ -56,7 +68,7 @@ class Simulator(object):
                 obs, r, done, _ = self.env.step(action)
                 r_ += r
                 reward += r
-                pu.step(obs)
+                self.pu.step(obs)
                 if done:
                     break_or_not = True
                     break
@@ -67,9 +79,10 @@ class Simulator(object):
                 reward_list.append(r_)
 
             if break_or_not:
+                self.start = False
                 break
         if Llocal is None:
-            # for test model
+            # for testing models
             return reward
         # for collecting data
         frame_list = frame_list[::-1]
@@ -92,13 +105,14 @@ def main(gamename):
     start_time = time.time()
     env = gym.make(gamename)
     action_n = env.action_space.n
-    batch_size = Llocal * actor_number
     critic = Value()
     actor = Policy2013(action_n)
     simulators = [Simulator.remote(gamename) for i in range(actor_number)]
 
     actor_optm = torch.optim.RMSprop(actor.parameters(), lr=actor_lr)
     critic_optm = torch.optim.RMSprop(critic.parameters(), lr=critic_lr)
+
+    frame_count = 0
 
     for g in range(generation):
         rollout_ids = [s.rollout.remote(actor, critic, Llocal) for s in simulators]
@@ -111,6 +125,7 @@ def main(gamename):
             frame_list.extend(rollout[0])
             action_list.extend(rollout[1])
             R_list.extend(rollout[2])
+        batch_size = len(R_list)
         input_state = torch.cat(frame_list)
         actor_target = torch.tensor(action_list).long()
         critic_target = torch.tensor(R_list).reshape(batch_size, 1).float()
@@ -129,8 +144,10 @@ def main(gamename):
         actor_loss.backward()
         actor_optm.step()
 
+        frame_count += batch_size*FrameSkip
+
         if g % 1 == 0:
-            print("Gen %s | progross %s/%s | time %.2f" % (g, batch_size*g*FrameSkip, Tmax, time.time()-start_time))
+            print("Gen %s | progross %s/%s | time %.2f" % (g, frame_count, Tmax, time.time()-start_time))
 
         if batch_size*g*FrameSkip > Tmax:
             break
