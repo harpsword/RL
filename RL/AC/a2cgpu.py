@@ -147,6 +147,7 @@ def main(gamename):
         actor_optm.zero_grad()
         actor_predict = actor(input_state)
         rescale_loss = (critic_target.detach()-critic_predict.detach()).reshape(batch_size, 1).mm(torch.ones(1, action_n).to(device))
+        # shape : (batch_size, action_n)
         actor_loss_tmp = F.log_softmax(actor_predict, dim=1) * rescale_loss
         actor_loss = F.nll_loss(actor_loss_tmp, actor_target)
         actor_loss.backward()

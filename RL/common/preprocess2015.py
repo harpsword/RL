@@ -52,7 +52,6 @@ class ProcessUnit(object):
         while len(x_list) < 4:
             x_list.append(x_list[-1])
         return torch.cat(x_list, 1)
-        #return torch.cat(x_list[::-1], 1)
 
     def transform(self, x):
         x = transforms.ToPILImage()(x).convert('RGB')
