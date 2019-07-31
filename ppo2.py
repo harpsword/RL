@@ -12,8 +12,8 @@ import numpy as np
 import torch.nn.functional as F
 
 from torch.utils.data import Dataset, DataLoader
-from ..common.preprocess2015 import ProcessUnit
-from ..common.model import Policy2013, Value
+from preprocess2015 import ProcessUnit
+from model import Policy2013, Value
 
 #gpu_id = torch.cuda.current_device()
 #gpu_device = torch.device(gpu_id)
@@ -45,6 +45,7 @@ class args(object):
     # clip parameter
     epsilon = 0.1 
     epsilon0 = epsilon
+    seed = 124
 
     @classmethod
     def update(cls, current_frames):
@@ -56,9 +57,9 @@ class args(object):
 @ray.remote
 class Simulator(object):
 
-    def __init__(self, gamename, seed):
+    def __init__(self, gamename):
         self.env = gym.make(gamename)
-        self.env.seed(seed)
+        self.env.seed(args.seed)
         self.obs = self.env.reset()
         self.start = False
 
@@ -189,6 +190,7 @@ def main(gamename):
     actor = Policy2013(action_n).to(device)
     simulators = [Simulator.remote(gamename) for i in range(args.actor_number)]
 
+    # TODO
     print(simulators[0].seed)
     exit()
 

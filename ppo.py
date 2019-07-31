@@ -10,8 +10,8 @@ import time
 import numpy as np
 import torch.nn.functional as F
 
-from ..common.preprocess2015 import ProcessUnit
-from ..common.model import Policy2013, Value
+from preprocess2015 import ProcessUnit
+from model import Policy2013, Value
 
 #gpu_id = torch.cuda.current_device()
 #gpu_device = torch.device(gpu_id)

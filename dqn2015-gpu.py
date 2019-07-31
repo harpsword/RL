@@ -15,9 +15,9 @@ from data import Data
 from test_model import get_reward_from_gamename
 
 # if you want to use Policy2013
-# from ..common.model import Policy2013 as Q_Net
-from ..common.model import Policy2015 as Q_Net
-from ..common.preprocess2015 import ProcessUnit
+# from model import Policy2013 as Q_Net
+from model import Policy2015 as Q_Net
+from preprocess2015 import ProcessUnit
 
 LogFolder = os.path.join(os.getcwd(), 'log')
 FRAME_SKIP = 4
