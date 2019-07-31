@@ -1,4 +1,6 @@
-
+"""
+implementation of A2C algo for Atari Environment
+"""
 import gym
 import ray
 import click
@@ -101,7 +103,7 @@ class Simulator(object):
                 else:
                     R_list.append(critic(frame))
             else:
-                R_list.append(Gamma*R_list[-1]+reward_list[i])
+                R_list.append(Gamma*R_list[-1]+reward_list[idx])
         return [frame_list, action_list, R_list] 
 
 
@@ -130,6 +132,9 @@ def main(gamename):
             frame_list.extend(rollout[0])
             action_list.extend(rollout[1])
             R_list.extend(rollout[2])
+
+        # after collecting training data,
+        # TODO: we need to build dataset and dataloader
         batch_size = len(R_list)
         input_state = torch.cat(frame_list).to(device)
         actor_target = torch.tensor(action_list).to(device).long()
@@ -158,15 +163,10 @@ def main(gamename):
         if g % 1 == 0:
             print("Gen %s | progross %s/%s | time %.2f" % (g, frame_count, Tmax, time.time()-start_time))
 
-        if batch_size*g*FrameSkip > Tmax:
+        if frame_count > Tmax:
             break
 
 if __name__ == "__main__":
     main()
-
-
-
-
-
 
 

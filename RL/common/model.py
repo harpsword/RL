@@ -1,5 +1,6 @@
 """
 It's for Atari Environment
+Stochasitic Policy
 """
 
 import torch
@@ -8,7 +9,33 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-class Policy2015(nn.Module):
+class AbstractPolicy(nn.Module):
+    """
+    AbstractPolicy class
+    """
+    def __init__(self):
+        super(AbstractPolicy, self).__init__()
+
+    def act(self, x):
+        x = self.forward(x)
+        x = F.softmax(x, dim=1)
+        return np.random.choice(self.ac_space, p=x.detach().numpy()[0])
+
+    def act_with_prob(self, x):
+        x = self.forward(x)
+        x = F.softmax(x, dim=1)
+        action = np.random.choice(self.ac_space, p=x.detach().numpy()[0])
+        prob= x.detach().numpy()[0][action]
+        return action, prob
+
+    def return_prob(self, x, action):
+        x = self.forward(x)
+        x = F.softmax(x, dim=1)
+        batch_size = x.shape[0]
+        return torch.Tensor([x[i,action[i]] for i in range(batch_size)])
+
+
+class Policy2015(AbstractPolicy):
     '''
     input: (N, 4, 84, 84)
     batch size = N 
@@ -31,13 +58,8 @@ class Policy2015(nn.Module):
         x = self.fc2(x)
         return x
 
-    def act(self, x):
-        x = self.forward(x)
-        x = F.softmax(x, dim=1)
-        return np.random.choice(self.ac_space, p=x.detach().numpy()[0])
 
-
-class Policy2013(nn.Module):
+class Policy2013(AbstractPolicy):
     '''
     input: (N, 4, 84, 84)
     batch size = N = 32
@@ -57,12 +79,6 @@ class Policy2013(nn.Module):
         x = F.relu(self.fc1(x))
         x = self.fc2(x)
         return x
-
-    def act(self, x):
-        x = self.forward(x)
-        x = F.softmax(x, dim=1)
-        return np.random.choice(self.ac_space, p=x.detach().numpy()[0])
-
 
 
 class Value(nn.Module):

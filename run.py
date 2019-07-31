@@ -1,7 +1,8 @@
 
 import ray
 from RL.AC import a2c
+from RL.PolicyGradient import ppo2
 
 ray.init()
 
-a2c.main("Amidar-v0")
+ppo2.main("Amidar-v0")

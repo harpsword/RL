@@ -1,4 +1,5 @@
 """
+using dataset and dataloader instead of np.random.choice
 implementation of PPO algo for Atari Environment
 """
 
@@ -10,6 +11,7 @@ import time
 import numpy as np
 import torch.nn.functional as F
 
+from torch.utils.data import Dataset, DataLoader
 from ..common.preprocess2015 import ProcessUnit
 from ..common.model import Policy2013, Value
 
@@ -34,20 +36,29 @@ class args(object):
     generation = 1000000
     # adam's stepsize 2.5 * 10^-4
     stepsize = 2.5e-4
+    stepsize0 = stepsize
     # Loss hyperparameter
     c1 = 1
     c2 = 0.01
     #minibatch_size = 32*8
-    minibatch_size = 32 * 8
+    minibatch_size = 32*8
     # clip parameter
     epsilon = 0.1 
+    epsilon0 = epsilon
+
+    @classmethod
+    def update(cls, current_frames):
+        ratio = 1 - current_frames / cls.Tmax
+        cls.stepsize = cls.stepsize0 * ratio
+        cls.epsilon = cls.epsilon0 * ratio
 
 
 @ray.remote
 class Simulator(object):
 
-    def __init__(self, gamename):
+    def __init__(self, gamename, seed):
         self.env = gym.make(gamename)
+        self.env.seed(seed)
         self.obs = self.env.reset()
         self.start = False
 
@@ -102,7 +113,6 @@ class Simulator(object):
                 done_list.append(done)
                 reward_list.append(r_)
                 probability_list.append(prob)
-
             if break_or_not:
                 self.start = False
                 break
@@ -146,6 +156,30 @@ class Simulator(object):
         return [frame_list, action_list, probability_list, advantage_list, Value_target_list]
 
 
+class RLDataset(Dataset):
+    """
+    dataset for RL data:
+
+    1. state
+    2. action
+    3. action probability
+    4. advantage estimator
+    5. target value(critic)
+    ...
+    """
+    def __init__(self, data_list):
+        super(RLDataset, self).__init__()
+        self.data_list = data_list
+        # the element of data_list should be torch.Tensor
+        self.length = self.data_list[0].shape[0]
+
+    def __getitem__(self, i):
+        return [d[i] for d in self.data_list]
+
+    def __len__(self):
+        return self.length
+
+
 @click.option("--gamename")
 def main(gamename):
     start_time = time.time()
@@ -155,12 +189,16 @@ def main(gamename):
     actor = Policy2013(action_n).to(device)
     simulators = [Simulator.remote(gamename) for i in range(args.actor_number)]
 
+    print(simulators[0].seed)
+    exit()
+
     actor_optm = torch.optim.Adam(actor.parameters(), lr=args.stepsize)
     critic_optm = torch.optim.Adam(critic.parameters(), lr=args.stepsize)
 
     frame_count = 0
 
     for g in range(args.generation):
+        # train simulator and test simulator will not use the same variable
         rollout_ids = [s.rollout.remote(actor.to(cpu_device), critic.to(cpu_device), args.Llocal) for s in simulators]
         frame_list = []
         action_list = []
@@ -185,34 +223,45 @@ def main(gamename):
         advantage_t = torch.Tensor(advantage_list).to(device).float()
         critic_target = torch.Tensor(value_list).to(device).float()
 
-        for batch_id in range(args.K):
-            minibatch_index = np.random.choice(batch_size, args.minibatch_size, replace=False)
-            minibatch_state = frame_t[minibatch_index]
-            minibatch_action = action_t[minibatch_index]
-            minibatch_prob = prob_t[minibatch_index]
-            minibatch_advan = advantage_t[minibatch_index]
-            minibatch_critic_target = critic_target[minibatch_index]
-            minibatch_new_prob = actor.return_prob(minibatch_state, minibatch_action)
+        dataset = RLDataset([frame_t, action_t, prob_t, advantage_t, critic_target])
+        dataloader = DataLoader(dataset, batch_size=args.minibatch_size, shuffle=True, num_workers=4)
 
-            # CLIP Loss
-            prob_div = minibatch_new_prob / minibatch_prob
-            CLIP_1 = prob_div * minibatch_advan
-            CLIP_2 = prob_div.clamp(1-args.epsilon, 1+args.epsilon) * minibatch_advan
-            loss_clip = torch.Tensor.mean(torch.Tensor.min(CLIP_1, CLIP_2))
-            # VF loss
-            minibatch_value_predict = critic(minibatch_state).flatten()
-            loss_value = torch.Tensor.mean((minibatch_critic_target-minibatch_value_predict).pow(2))
-            # entropy loss
-            # TODO: error in here
-            loss_entropy = torch.Tensor.mean(torch.Tensor.log(minibatch_new_prob)*minibatch_new_prob)
-            loss = loss_clip + loss_value + loss_entropy
-            actor_optm.zero_grad()
-            critic_optm.zero_grad()
-            loss.backward()
-            actor_optm.step()
-            critic_optm.step()
+        for batch_idx in range(args.K):
+            for data_l in dataloader:
+                # mb means minibatch 
+                mb_state = data_l[0]
+                mb_action = data_l[1]
+                mb_prob = data_l[2]
+                mb_advan = data_l[3]
+                mb_critic_target = data_l[4]
+
+                mb_new_prob = actor.return_prob(mb_state, mb_action)
+                
+                # CLIP Loss
+                prob_div = mb_new_prob / mb_prob
+                CLIP_1 = prob_div * mb_advan
+                CLIP_2 = prob_div.clamp(1-args.epsilon, 1+args.epsilon) * mb_advan
+                loss_clip = torch.Tensor.mean(torch.Tensor.min(CLIP_1, CLIP_2))
+                # VF loss
+                mb_value_predict = critic(mb_state).flatten()
+                loss_value = torch.Tensor.mean((mb_critic_target-mb_value_predict).pow(2))
+                # entropy loss
+                # TODO: error in here
+                loss_entropy = torch.Tensor.mean(torch.Tensor.log(mb_new_prob)*mb_new_prob)
+                loss = loss_clip + loss_value + loss_entropy
+                actor_optm.zero_grad()
+                critic_optm.zero_grad()
+                loss.backward()
+                actor_optm.step()
+                critic_optm.step()
 
         frame_count += batch_size * args.FrameSkip
+        args.update(frame_count)
+        # update optim's learning rate
+        for g in actor_optm.param_groups():
+            g['lr'] = args.stepsize
+        for g in critic_optm.param_groups():
+            g['lr'] = args.stepsize
 
         if g % 1 == 0:
             print("Gen %s | progross percent:%.2f | time %.2f" % (g, frame_count/args.Tmax*100, time.time()-start_time))
