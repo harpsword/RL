@@ -143,9 +143,10 @@ class Simulator(object):
             elif idx > 1:
                 delta_list.append(delta)
                 advantage_list.append(advantage_list[-1]*args.Lambda*args.Gamma)
-        return [frame_list, action_list, probability_list, advantage_list, Value_target_list]
+        return [frame_list[1:], action_list[1:], probability_list[1:], advantage_list, Value_target_list]
 
 
+@click.command()
 @click.option("--gamename")
 def main(gamename):
     start_time = time.time()
@@ -221,6 +222,7 @@ def main(gamename):
             break
 
 if __name__ == "__main__":
+    ray.init()
     main()
 
 

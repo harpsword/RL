@@ -154,7 +154,7 @@ class Simulator(object):
             elif idx > 1:
                 delta_list.append(delta)
                 advantage_list.append(advantage_list[-1]*args.Lambda*args.Gamma)
-        return [frame_list, action_list, probability_list, advantage_list, Value_target_list]
+        return [frame_list[1:], action_list[1:], probability_list[1:], advantage_list, Value_target_list]
 
 
 class RLDataset(Dataset):
@@ -180,7 +180,7 @@ class RLDataset(Dataset):
     def __len__(self):
         return self.length
 
-
+@click.command()
 @click.option("--gamename")
 def main(gamename):
     start_time = time.time()
@@ -189,10 +189,6 @@ def main(gamename):
     critic = Value().to(device)
     actor = Policy2013(action_n).to(device)
     simulators = [Simulator.remote(gamename) for i in range(args.actor_number)]
-
-    # TODO
-    print(simulators[0].seed)
-    exit()
 
     actor_optm = torch.optim.Adam(actor.parameters(), lr=args.stepsize)
     critic_optm = torch.optim.Adam(critic.parameters(), lr=args.stepsize)
@@ -224,6 +220,7 @@ def main(gamename):
         prob_t = torch.Tensor(prob_list).to(device).float()
         advantage_t = torch.Tensor(advantage_list).to(device).float()
         critic_target = torch.Tensor(value_list).to(device).float()
+
 
         dataset = RLDataset([frame_t, action_t, prob_t, advantage_t, critic_target])
         dataloader = DataLoader(dataset, batch_size=args.minibatch_size, shuffle=True, num_workers=4)
@@ -260,18 +257,21 @@ def main(gamename):
         frame_count += batch_size * args.FrameSkip
         args.update(frame_count)
         # update optim's learning rate
-        for g in actor_optm.param_groups():
-            g['lr'] = args.stepsize
-        for g in critic_optm.param_groups():
-            g['lr'] = args.stepsize
+        for gg in actor_optm.param_groups:
+            gg['lr'] = args.stepsize
+        for gg in critic_optm.param_groups:
+            gg['lr'] = args.stepsize
 
         if g % 1 == 0:
             print("Gen %s | progross percent:%.2f | time %.2f" % (g, frame_count/args.Tmax*100, time.time()-start_time))
+            print("Gen %s | progross %s/%s | time %.2f" % (g, frame_count, args.Tmax, time.time()-start_time))
+
 
         if frame_count > args.Tmax:
             break
 
 if __name__ == "__main__":
+    ray.init()
     main()
 
 

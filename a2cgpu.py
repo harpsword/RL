@@ -107,6 +107,7 @@ class Simulator(object):
         return [frame_list, action_list, R_list] 
 
 
+@click.command()
 @click.option("--gamename")
 def main(gamename):
     start_time = time.time()
@@ -167,6 +168,7 @@ def main(gamename):
             break
 
 if __name__ == "__main__":
+    ray.init()
     main()
 
 
