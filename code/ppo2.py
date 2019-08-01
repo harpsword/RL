@@ -3,22 +3,27 @@ using dataset and dataloader instead of np.random.choice
 implementation of PPO algo for Atari Environment
 """
 
+import os
 import gym
 import ray
 import click
 import torch
 import time
 import numpy as np
+import pandas as pd
 import torch.nn.functional as F
 
 from torch.utils.data import Dataset, DataLoader
-from preprocess2015 import ProcessUnit
-from model import Policy2013, Value
+from util.preprocess2015 import ProcessUnit
+from util.model import Policy2013, Value
+from util.tools import save_record
 
-#gpu_id = torch.cuda.current_device()
-#gpu_device = torch.device(gpu_id)
+gpu_id = torch.cuda.current_device()
+gpu_device = torch.device(gpu_id)
 cpu_device = torch.device('cpu')
-device = cpu_device
+device = gpu_device
+
+storage_path = "../results"
 
 
 class args(object):
@@ -56,14 +61,25 @@ class args(object):
 
 @ray.remote
 class Simulator(object):
-
+    """
+    simulator can be used for training data collection and performance test.
+    If you define a Simulator for training data collection, you should not use it for testing.
+    """
     def __init__(self, gamename):
         self.env = gym.make(gamename)
-        self.env.seed(args.seed)
+        #self.env.seed(args.seed)
         self.obs = self.env.reset()
         self.start = False
+        self.record = {
+            "episode":[],
+            "steps":[],
+            "reward":[],
+            "gamelength":[]
+        }
+        self.reward = 0
+        self.gamelength = 0
 
-    def start_game(self):
+    def start_game(self, episode, steps):
         no_op_frames = np.random.randint(1,30)
         self.pu = ProcessUnit(4, args.FrameSkip)
         obs = self.env.reset()
@@ -74,17 +90,26 @@ class Simulator(object):
             if done:
                 return False
         self.start = True
+        self.record['episode'].append(episode)
+        self.record['steps'].append(steps)
+        self.record['reward'].append(self.reward)
+        self.record['gamelength'].append(self.gamelength)
+        self.reward = 0
+        self.gamelength = 0
         return True
 
-    def rollout(self, actor, critic, Llocal):
+    def get_records(self):
+        return self.record
+
+    def rollout(self, actor, critic, Llocal, episode, steps):
         """
         if Llocal is None: test mission
         else: collect data
         """
         while not self.start:
-            self.start_game()
+            self.start_game(episode, steps)
         if Llocal is None:
-            self.start_game()
+            self.start_game(episode, steps)
 
         Lmax = 108000 if Llocal is None else Llocal
         frame_list = []
@@ -105,6 +130,11 @@ class Simulator(object):
                 r_ += r
                 reward += r
                 self.pu.step(obs)
+
+                # it's for recording 
+                self.reward += r
+                self.gamelength += 1
+                
                 if done:
                     break_or_not = True
                     break
@@ -197,7 +227,7 @@ def main(gamename):
 
     for g in range(args.generation):
         # train simulator and test simulator will not use the same variable
-        rollout_ids = [s.rollout.remote(actor.to(cpu_device), critic.to(cpu_device), args.Llocal) for s in simulators]
+        rollout_ids = [s.rollout.remote(actor.to(cpu_device), critic.to(cpu_device), args.Llocal, g, frame_count) for s in simulators]
         frame_list = []
         action_list = []
         prob_list =  []
@@ -215,26 +245,24 @@ def main(gamename):
         actor.to(device)
         critic.to(device)
         batch_size = len(advantage_list)
-        frame_t = torch.cat(frame_list).to(device)
-        action_t = torch.Tensor(action_list).to(device).long()
-        prob_t = torch.Tensor(prob_list).to(device).float()
-        advantage_t = torch.Tensor(advantage_list).to(device).float()
-        critic_target = torch.Tensor(value_list).to(device).float()
-
+        frame_t = torch.cat(frame_list)
+        action_t = torch.Tensor(action_list).long()
+        prob_t = torch.Tensor(prob_list).float()
+        advantage_t = torch.Tensor(advantage_list).float()
+        critic_target = torch.Tensor(value_list).float()
 
         dataset = RLDataset([frame_t, action_t, prob_t, advantage_t, critic_target])
         dataloader = DataLoader(dataset, batch_size=args.minibatch_size, shuffle=True, num_workers=4)
-
         for batch_idx in range(args.K):
             for data_l in dataloader:
                 # mb means minibatch 
-                mb_state = data_l[0]
-                mb_action = data_l[1]
-                mb_prob = data_l[2]
-                mb_advan = data_l[3]
-                mb_critic_target = data_l[4]
+                mb_state = data_l[0].to(device)
+                mb_action = data_l[1].to(device)
+                mb_prob = data_l[2].to(device)
+                mb_advan = data_l[3].to(device)
+                mb_critic_target = data_l[4].to(device)
 
-                mb_new_prob = actor.return_prob(mb_state, mb_action)
+                mb_new_prob = actor.return_prob(mb_state, mb_action).to(device)
                 
                 # CLIP Loss
                 prob_div = mb_new_prob / mb_prob
@@ -262,13 +290,23 @@ def main(gamename):
         for gg in critic_optm.param_groups:
             gg['lr'] = args.stepsize
 
-        if g % 1 == 0:
+        if g % 10 == 0:
             print("Gen %s | progross percent:%.2f | time %.2f" % (g, frame_count/args.Tmax*100, time.time()-start_time))
             print("Gen %s | progross %s/%s | time %.2f" % (g, frame_count, args.Tmax, time.time()-start_time))
 
-
         if frame_count > args.Tmax:
             break
+
+        if g % 10 == 0:
+            records_id = [s.get_records.remote() for s in simulators]
+            save_record(records_id, storage_path, 'ppo-record-%s.csv' % gamename)
+            torch.save(actor.state_dict(), storage_path+"ppo_actor_"+gamename+'.pt')
+
+    # after training
+    records_id = [s.get_records.remote() for s in simulators]
+    save_record(records_id, storage_path, 'ppo-record-%s.csv' % gamename)
+    torch.save(actor.state_dict(), storage_path+"ppo_actor_"+gamename+'.pt')
+
 
 if __name__ == "__main__":
     ray.init()
