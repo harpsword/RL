@@ -275,7 +275,7 @@ def main(gamename):
                 # entropy loss
                 # TODO: error in here
                 loss_entropy = torch.Tensor.mean(torch.Tensor.log(mb_new_prob)*mb_new_prob)
-                loss = loss_clip + loss_value + loss_entropy
+                loss = loss_clip + args.c1*loss_value + loss_entropy*args.c2
                 actor_optm.zero_grad()
                 critic_optm.zero_grad()
                 loss.backward()
