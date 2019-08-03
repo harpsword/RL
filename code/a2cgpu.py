@@ -9,8 +9,12 @@ import time
 import numpy as np
 import torch.nn.functional as F
 
-from preprocess2015 import ProcessUnit
-from model import Policy2013, Value
+from util.preprocess2015 import ProcessUnit
+from util.model import Policy2013, Value
+from util.tools import save_record
+
+
+storage_path = "../results"
 
 Gamma = 0.99
 Llocal = 32
@@ -66,6 +70,10 @@ class Simulator(object):
     def get_records(self):
         return self.record
 
+    def add_record(self, r):
+        self.reward += r
+        self.gamelength += 1
+
     def rollout(self, actor, critic, Llocal):
         """
         if Llocal is None: test mission
@@ -95,8 +103,7 @@ class Simulator(object):
                 self.pu.step(obs)
 
                 # it's for recording 
-                self.reward += r
-                self.gamelength += 1
+                self.add_record(r)
                 if done:
                     break_or_not = True
                     break
@@ -187,6 +194,16 @@ def main(gamename):
 
         if frame_count > Tmax:
             break
+
+        if g % 10 == 0:
+            records_id = [s.get_records.remote() for s in simulators]
+            save_record(records_id, storage_path, 'ppo-record-%s.csv' % gamename)
+            torch.save(actor.state_dict(), storage_path+"ppo_actor_"+gamename+'.pt')
+
+    # after training
+    records_id = [s.get_records.remote() for s in simulators]
+    save_record(records_id, storage_path, 'ppo-record-%s.csv' % gamename)
+    torch.save(actor.state_dict(), storage_path+"ppo_actor_"+gamename+'.pt')
 
 if __name__ == "__main__":
     ray.init()

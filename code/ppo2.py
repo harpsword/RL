@@ -105,6 +105,10 @@ class Simulator(object):
     def get_records(self):
         return self.record
 
+    def add_record(self, r):
+        self.reward += r
+        self.gamelength += 1
+
     def rollout(self, actor, critic, Llocal, episode, steps):
         """
         if Llocal is None: test mission
@@ -135,9 +139,8 @@ class Simulator(object):
                 reward += r
                 self.pu.step(obs)
 
-                # it's for recording 
-                self.reward += r
-                self.gamelength += 1
+                # it's for recording
+                self.add_record(r)
                 
                 if done:
                     break_or_not = True
