@@ -18,10 +18,14 @@ from util.preprocess2015 import ProcessUnit
 from util.model import Policy2013, Value
 from util.tools import save_record
 
-gpu_id = torch.cuda.current_device()
-gpu_device = torch.device(gpu_id)
 cpu_device = torch.device('cpu')
-device = gpu_device
+device = cpu_device
+try:
+    gpu_id = torch.cuda.current_device()
+    gpu_device = torch.device(gpu_id)
+    device = gpu_device
+except AssertionError:
+    device = cpu_device
 
 storage_path = "../results"
 
@@ -169,7 +173,15 @@ class Simulator(object):
         R = 0
         for idx, frame in enumerate(frame_list):
             # idx = 0 is a deserted frame
-            delta = reward_list[idx] + args.Gamma * critic_output_list[idx-1] - critic_output_list[idx]
+            if idx > 0:
+                delta = reward_list[idx] + args.Gamma * critic_output_list[idx-1] - critic_output_list[idx]
+            if idx == 1:
+                delta_list.append(delta)
+                advantage_list.append(delta)
+            elif idx > 1:
+                delta_list.append(delta)
+                advantage_list.append(advantage_list[-1]*args.Lambda*args.Gamma+delta)
+            # for value target calculating
             if idx == 0:
                 if done_list[-1]:
                     R = 0
@@ -178,12 +190,6 @@ class Simulator(object):
             else:
                 R = args.Gamma * R + reward_list[idx]
                 Value_target_list.append(R)
-            if idx == 1:
-                delta_list.append(delta)
-                advantage_list.append(delta_list[-1])
-            elif idx > 1:
-                delta_list.append(delta)
-                advantage_list.append(advantage_list[-1]*args.Lambda*args.Gamma)
         return [frame_list[1:], action_list[1:], probability_list[1:], advantage_list, Value_target_list]
 
 

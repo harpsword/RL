@@ -35,6 +35,14 @@ class Simulator(object):
         self.env = gym.make(gamename)
         self.obs = self.env.reset()
         self.start = False
+        self.record = {
+            "episode":[],
+            "steps":[],
+            "reward":[],
+            "gamelength":[]
+        }
+        self.reward = 0
+        self.gamelength = 0
 
     def start_game(self):
         no_op_frames = np.random.randint(1,30)
@@ -47,7 +55,16 @@ class Simulator(object):
             if done:
                 return False
         self.start = True
+        self.record['episode'].append(episode)
+        self.record['steps'].append(steps)
+        self.record['reward'].append(self.reward)
+        self.record['gamelength'].append(self.gamelength)
+        self.reward = 0
+        self.gamelength = 0
         return True
+
+    def get_records(self):
+        return self.record
 
     def rollout(self, actor, critic, Llocal):
         """
@@ -76,6 +93,10 @@ class Simulator(object):
                 r_ += r
                 reward += r
                 self.pu.step(obs)
+
+                # it's for recording 
+                self.reward += r
+                self.gamelength += 1
                 if done:
                     break_or_not = True
                     break
