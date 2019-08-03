@@ -1,13 +1,13 @@
-# Deep Q-Learning
+## Deep Q-Learning
 
 Article: Mnih, et al. Playing atari with deep reinforcement learning. In NIPS Deep Learning Workshop. 2013.
 
-## Intuition
+### Intuition
 
 结合深度神经网络在模式识别上的能力，做一个端到端的强化学习算法
 
 
-## Model Architecture
+### Model Architecture
 
 
 - CNN1, 16 8x8 filters, stride=4, input=4x84x84, output=16x20x20
@@ -18,7 +18,7 @@ Article: Mnih, et al. Playing atari with deep reinforcement learning. In NIPS De
 - ReLU
 - Output layer: input 256, output: the number of actions (no softmax)
 
-## Preprocessing
+### Preprocessing
 
 [Mnih et al. 2013]
 
@@ -36,6 +36,19 @@ why flicking? some objects only in even frames or odd frames
 3. scale to 84x84
 
 Notice: the preprocessing will be applied to the m most recent frames and stacks them to produce the input to the Q-function, most time m=4
+
+## PPO(PPO2)
+
+### Atari
+Tmax = 40M
+
+with initilization scheme for ANN Model
+test case: Amidar
+
+1. 无advantage norm, Horizon=128
+test: Centipede
+
+2. 
 
 ## Ref
 1. Mnih V, Kavukcuoglu K, Silver D, et al. Playing atari with deep reinforcement learning[J]. arXiv preprint arXiv:1312.5602, 2013.

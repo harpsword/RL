@@ -28,6 +28,7 @@ except AssertionError:
     device = cpu_device
 
 storage_path = "../results"
+EPS = 1e-10
 
 
 class args(object):
@@ -55,6 +56,10 @@ class args(object):
     epsilon = 0.1 
     epsilon0 = epsilon
     seed = 124
+    layer_norm = True
+    state_norm = True
+    advantage_norm = False
+    lossvalue_norm = True
 
     @classmethod
     def update(cls, current_frames):
@@ -128,7 +133,7 @@ class Simulator(object):
         probability_list = []
         break_or_not = False
         reward = 0
-        for i in range(Lmax+1):
+        for i in range(Lmax):
             frame_now = self.pu.to_torch_tensor()
             # stochastic policy
             action, prob = actor.act_with_prob(frame_now)
@@ -148,7 +153,7 @@ class Simulator(object):
             if Llocal is not None:
                 frame_list.append(frame_now)
                 action_list.append(action)
-                done_list.append(done)
+                done_list.append(0 if done else 1)
                 reward_list.append(r_)
                 probability_list.append(prob)
             if break_or_not:
@@ -158,42 +163,37 @@ class Simulator(object):
             # for testing models
             return reward
         # for collecting data
-        last_frame = frame_list[-1]
         frame_list = frame_list[::-1]
         action_list = action_list[::-1]
         reward_list = reward_list[::-1]
         probability_list = probability_list[::-1]
-
-        critic_output_list = []
+        done_list = done_list[::-1]
+        # value's output
+        value_list = []
         for idx, frame in enumerate(frame_list):
-            critic_output_list.append(critic(frame))
+            value_list.append(critic(frame))
 
         delta_list = []
         advantage_list = []
         Value_target_list = []
+        # previous discounted return
+        prev_return = 0
+        prev_value = 0
+        prev_advantage = 0
 
-        delta = 0
-        R = 0
-        for idx, frame in enumerate(frame_list):
-            # idx = 0 is a deserted frame
-            if idx > 0:
-                delta = reward_list[idx] + args.Gamma * critic_output_list[idx-1] - critic_output_list[idx]
-            if idx == 1:
-                delta_list.append(delta)
-                advantage_list.append(delta)
-            elif idx > 1:
-                delta_list.append(delta)
-                advantage_list.append(advantage_list[-1]*args.Lambda*args.Gamma+delta)
-            # for value target calculating
-            if idx == 0:
-                if done_list[-1]:
-                    R = 0
-                else:
-                    R = critic_output_list[idx]
-            else:
-                R = args.Gamma * R + reward_list[idx]
-                Value_target_list.append(R)
-        return [frame_list[1:], action_list[1:], probability_list[1:], advantage_list, Value_target_list]
+        for i in range(len(reward_list)):
+            Value_target_list.append(reward_list[i]+args.Gamma*prev_return*done_list[i])
+            delta_list.append(reward_list[i]+args.Gamma*prev_value*done_list[i]-value_list[i])
+            assert delta_list[i] == delta_list[-1]
+            advantage_list.append(delta_list[i] + args.Gamma*args.Lambda*prev_advantage*done_list[i])
+
+            prev_return = Value_target_list[i]
+            prev_value = value_list[i]
+            prev_advantage = advantage_list[i]
+
+        # if args.advantage_norm:
+        #     mb_advan = (mb_advan - mb_advan.mean()) / (mb_advan.std() + EPS)
+        return [frame_list, action_list, probability_list, advantage_list, Value_target_list]
 
 
 class RLDataset(Dataset):
@@ -239,7 +239,7 @@ def main(gamename):
         rollout_ids = [s.rollout.remote(actor.to(cpu_device), critic.to(cpu_device), args.Llocal, g, frame_count) for s in simulators]
         frame_list = []
         action_list = []
-        prob_list =  []
+        prob_list = []
         advantage_list = []
         value_list = []
         
@@ -272,7 +272,6 @@ def main(gamename):
                 mb_critic_target = data_l[4].to(device)
 
                 mb_new_prob = actor.return_prob(mb_state, mb_action).to(device)
-                
                 # CLIP Loss
                 prob_div = mb_new_prob / mb_prob
                 CLIP_1 = prob_div * mb_advan
