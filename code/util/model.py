@@ -26,14 +26,13 @@ class AbstractPolicy(nn.Module):
         x = self.forward(x)
         x = F.softmax(x, dim=1)
         action = np.random.choice(self.ac_space, p=x.detach().numpy()[0])
-        prob = x.detach().numpy()[0][action]
+        prob = x[0][action]
         return action, prob
 
-    def return_prob(self, x, action):
+    def return_prob(self, x):
         x = self.forward(x)
         x = F.softmax(x, dim=1)
-        batch_size = x.shape[0]
-        return torch.Tensor([x[i,action[i]] for i in range(batch_size)])
+        return x
 
     def _initialize_weights(self):
         for m in self.modules():

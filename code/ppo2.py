@@ -49,7 +49,7 @@ class args(object):
     stepsize0 = stepsize
     # Loss hyperparameter
     c1 = 1
-    c2 = 0.01
+    c2 = 0
     #minibatch_size = 32*8
     minibatch_size = 32*8
     # clip parameter
@@ -265,30 +265,37 @@ def main(gamename):
         for batch_idx in range(args.K):
             for data_l in dataloader:
                 # mb means minibatch 
+                mb_size = data_l[0].shape[0]
                 mb_state = data_l[0].to(device)
                 mb_action = data_l[1].to(device)
                 mb_prob = data_l[2].to(device)
                 mb_advan = data_l[3].to(device)
                 mb_critic_target = data_l[4].to(device)
-
-                mb_new_prob = actor.return_prob(mb_state, mb_action).to(device)
+                
+                mb_new_prob = actor.return_prob(mb_state).to(device)
+                mb_old_prob = mb_prob.reshape(mb_size, 1).mm(torch.ones(1, action_n).to(device))
                 # CLIP Loss
-                prob_div = mb_new_prob / mb_prob
-                CLIP_1 = prob_div * mb_advan
-                CLIP_2 = prob_div.clamp(1-args.epsilon, 1+args.epsilon) * mb_advan
-                loss_clip = torch.Tensor.mean(torch.Tensor.min(CLIP_1, CLIP_2))
+                prob_div = mb_new_prob / mb_old_prob
+                mb_advan_square = mb_advan.reshape(mb_size, 1).mm(torch.ones(1, action_n).to(device))
+                CLIP_1 = prob_div * mb_advan_square
+                CLIP_2 = prob_div.clamp(1-args.epsilon, 1+args.epsilon) * mb_advan_square
+                loss_clip = F.nll_loss(torch.Tensor.min(CLIP_1, CLIP_2), mb_action)
+                #loss_clip = - torch.Tensor.mean(torch.Tensor.min(CLIP_1, CLIP_2))
                 # VF loss
                 mb_value_predict = critic(mb_state).flatten()
                 loss_value = torch.Tensor.mean((mb_critic_target-mb_value_predict).pow(2))
                 # entropy loss
                 # TODO: error in here
-                loss_entropy = torch.Tensor.mean(torch.Tensor.log(mb_new_prob)*mb_new_prob)
-                loss = loss_clip + args.c1*loss_value + loss_entropy*args.c2
+                # loss_entropy = torch.Tensor.mean(torch.Tensor.log(mb_new_prob)*mb_new_prob)
+                loss = loss_clip + args.c1*loss_value
+                # print(loss_clip)
+                # print(loss_value)
                 actor_optm.zero_grad()
                 critic_optm.zero_grad()
                 loss.backward()
                 actor_optm.step()
                 critic_optm.step()
+                
 
         frame_count += batch_size * args.FrameSkip
         args.update(frame_count)

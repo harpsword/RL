@@ -18,7 +18,7 @@ storage_path = "../results"
 
 Gamma = 0.99
 Llocal = 32
-Tmax = 320e6 
+Tmax = int(320e6)
 FrameSkip = 4
 
 actor_number = 16
@@ -164,6 +164,8 @@ def main(gamename):
 
         # after collecting training data,
         # TODO: we need to build dataset and dataloader
+        # TODO: Loss need to be rebuild
+        # TODO: the use of detach()
         batch_size = len(R_list)
         input_state = torch.cat(frame_list).to(device)
         actor_target = torch.tensor(action_list).to(device).long()

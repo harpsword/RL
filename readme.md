@@ -45,10 +45,17 @@ Tmax = 40M
 with initilization scheme for ANN Model
 test case: Amidar
 
-1. 无advantage norm, Horizon=128
+1. 无advantage norm, Horizon=128, new GAE计算代码
 test: Centipede
 
-2. 
+2. 修复 Loss计算处的bug(Loss or GAE符号取错了)
+
+   ​	test: Centipede, Assault, Qbert,Amidar
+   
+   ​	依旧不收敛
+
+3. 修复计算图没有成功构成的bug(loss_advantage 没有grad_fn属性)
+   1. 重写了loss_advantage的计算过程，采用了nll_loss
 
 ## Ref
 1. Mnih V, Kavukcuoglu K, Silver D, et al. Playing atari with deep reinforcement learning[J]. arXiv preprint arXiv:1312.5602, 2013.
