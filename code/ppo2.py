@@ -49,7 +49,7 @@ class args(object):
     stepsize0 = stepsize
     # Loss hyperparameter
     c1 = 1
-    c2 = 0
+    c2 = 0.01
     #minibatch_size = 32*8
     minibatch_size = 32*8
     # clip parameter
@@ -279,15 +279,14 @@ def main(gamename):
                 mb_advan_square = mb_advan.reshape(mb_size, 1).mm(torch.ones(1, action_n).to(device))
                 CLIP_1 = prob_div * mb_advan_square
                 CLIP_2 = prob_div.clamp(1-args.epsilon, 1+args.epsilon) * mb_advan_square
-                loss_clip = F.nll_loss(torch.Tensor.min(CLIP_1, CLIP_2), mb_action)
-                #loss_clip = - torch.Tensor.mean(torch.Tensor.min(CLIP_1, CLIP_2))
+                loss_clip = - F.nll_loss(torch.Tensor.min(CLIP_1, CLIP_2), mb_action)
                 # VF loss
                 mb_value_predict = critic(mb_state).flatten()
                 loss_value = torch.Tensor.mean((mb_critic_target-mb_value_predict).pow(2))
                 # entropy loss
                 # TODO: error in here
-                # loss_entropy = torch.Tensor.mean(torch.Tensor.log(mb_new_prob)*mb_new_prob)
-                loss = loss_clip + args.c1*loss_value
+                loss_entropy = - (torch.Tensor.log2(mb_new_prob) * mb_new_prob).sum() / mb_size
+                loss = - loss_clip + args.c1*loss_value - args.c2 * loss_entropy
                 # print(loss_clip)
                 # print(loss_value)
                 actor_optm.zero_grad()

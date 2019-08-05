@@ -173,12 +173,7 @@ def main(gamename):
 
         actor.to(device)
         critic.to(device)
-
-        critic_optm.zero_grad()
         critic_predict = critic(input_state)
-        critic_loss = F.mse_loss(critic_predict, critic_target)
-        critic_loss.backward()
-        critic_optm.step()
 
         actor_optm.zero_grad()
         actor_predict = actor(input_state)
@@ -188,6 +183,11 @@ def main(gamename):
         actor_loss = F.nll_loss(actor_loss_tmp, actor_target)
         actor_loss.backward()
         actor_optm.step()
+
+        critic_optm.zero_grad()
+        critic_loss = F.mse_loss(critic_predict, critic_target)
+        critic_loss.backward()
+        critic_optm.step()
 
         frame_count += batch_size * FrameSkip
 
@@ -199,13 +199,13 @@ def main(gamename):
 
         if g % 10 == 0:
             records_id = [s.get_records.remote() for s in simulators]
-            save_record(records_id, storage_path, 'ppo-record-%s.csv' % gamename)
-            torch.save(actor.state_dict(), storage_path+"ppo_actor_"+gamename+'.pt')
+            save_record(records_id, storage_path, 'a2c-record-%s.csv' % gamename)
+            torch.save(actor.state_dict(), storage_path+"a2c-actor-"+gamename+'.pt')
 
     # after training
     records_id = [s.get_records.remote() for s in simulators]
-    save_record(records_id, storage_path, 'ppo-record-%s.csv' % gamename)
-    torch.save(actor.state_dict(), storage_path+"ppo_actor_"+gamename+'.pt')
+    save_record(records_id, storage_path, 'a2c-record-%s.csv' % gamename)
+    torch.save(actor.state_dict(), storage_path+"a2c-actor-"+gamename+'.pt')
 
 if __name__ == "__main__":
     ray.init()
