@@ -58,9 +58,10 @@ test: Centipede
   
    1. 重写了loss_advantage的计算过程，采用了nll_loss
    2. 结果表示收敛
-   3. 有bug，model里的prob 存在Nan值
    
 4. 重写了entropy项，
+
+   1. 有bug，model里的prob 存在Nan值
 
 ## Ref
 1. Mnih V, Kavukcuoglu K, Silver D, et al. Playing atari with deep reinforcement learning[J]. arXiv preprint arXiv:1312.5602, 2013.
