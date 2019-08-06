@@ -1,6 +1,7 @@
 """
-It's for Atari Environment
-Stochasitic Policy
+It's for MuJoCo Environment
+Stochasitic and Deterministic Policy
+TODO
 """
 
 import torch

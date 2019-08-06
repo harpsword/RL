@@ -9,6 +9,7 @@ import ray
 import click
 import torch
 import time
+import pickle
 import numpy as np
 import pandas as pd
 import torch.nn.functional as F
@@ -58,7 +59,7 @@ class args(object):
     seed = 124
     layer_norm = True
     state_norm = True
-    advantage_norm = False
+    advantage_norm = True 
     lossvalue_norm = True
 
     @classmethod
@@ -136,7 +137,22 @@ class Simulator(object):
         for i in range(Lmax):
             frame_now = self.pu.to_torch_tensor()
             # stochastic policy
-            action, prob = actor.act_with_prob(frame_now)
+            try:
+                action, prob = actor.act_with_prob(frame_now)
+            except ValueError:
+                rr = np.random.randint(1, 300)
+                pu_file = open("pu_file"+str(rr), "wb")
+                pickle.dump(self.pu, pu_file)
+                pu_file.close()
+                model_file = open("model_file"+str(rr), "wb")
+                pickle.dump(actor, model_file)
+                model_file.close()
+
+                print(frame_now)
+                print(frame_now.mean())
+                print(len(self.pu.frame_list))
+                print(i)
+                exit()
             r_ = 0
             for j in range(args.FrameSkip):
                 obs, r, done, _ = self.env.step(action)
@@ -260,6 +276,9 @@ def main(gamename):
         advantage_t = torch.Tensor(advantage_list).float()
         critic_target = torch.Tensor(value_list).float()
 
+        if args.advantage_norm:
+            advantage_t = (advantage_t - advantage_t.mean())/(advantage_t.std() + EPS)
+
         dataset = RLDataset([frame_t, action_t, prob_t, advantage_t, critic_target])
         dataloader = DataLoader(dataset, batch_size=args.minibatch_size, shuffle=True, num_workers=4)
         for batch_idx in range(args.K):
@@ -280,21 +299,25 @@ def main(gamename):
                 CLIP_1 = prob_div * mb_advan_square
                 CLIP_2 = prob_div.clamp(1-args.epsilon, 1+args.epsilon) * mb_advan_square
                 loss_clip = - F.nll_loss(torch.Tensor.min(CLIP_1, CLIP_2), mb_action)
-                # VF loss
-                mb_value_predict = critic(mb_state).flatten()
-                loss_value = torch.Tensor.mean((mb_critic_target-mb_value_predict).pow(2))
                 # entropy loss
                 # TODO: error in here
                 loss_entropy = - (torch.Tensor.log2(mb_new_prob) * mb_new_prob).sum() / mb_size
-                loss = - loss_clip + args.c1*loss_value - args.c2 * loss_entropy
-                # print(loss_clip)
-                # print(loss_value)
+                actor_loss = -(loss_clip+args.c2*loss_entropy)
                 actor_optm.zero_grad()
-                critic_optm.zero_grad()
-                loss.backward()
+                actor_loss.backward()
                 actor_optm.step()
+
+                # VF loss
+                mb_value_predict = critic(mb_state).flatten()
+                loss_value = torch.Tensor.mean((mb_critic_target-mb_value_predict).pow(2))
+                critic_loss = loss_value
+                critic_optm.zero_grad()
+                critic_loss.backward()
                 critic_optm.step()
                 
+                #print(loss_clip)
+                #print(loss_value)
+                #print(loss_entropy)
 
         frame_count += batch_size * args.FrameSkip
         args.update(frame_count)
