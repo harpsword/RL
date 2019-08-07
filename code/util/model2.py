@@ -1,6 +1,6 @@
 """
 It's for MuJoCo Environment
-Deterministic Policy (DDPG)
+Deterministic Policy (for DDPG)
 TODO
 """
 
@@ -9,6 +9,8 @@ import math
 import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
+
+EPS = 3e-3
 
 
 class AbstractPolicy(nn.Module):
@@ -35,9 +37,13 @@ class Policy(AbstractPolicy):
         self.action_dim = action_dim
         self.action_lim = action_lim
         self.fc1 = nn.Linear(self.state_dim, 64)
+        nn.init.uniform_(self.fc1.weight, -math.sqrt(state_dim), math.sqrt(state_dim))
+
         self.fc2 = nn.Linear(64, 64)
+        nn.init.uniform_(self.fc2.weight, -math.sqrt(64), math.sqrt(64))
+
         self.fc3 = nn.Linear(64, self.action_dim)
-        self.__initialize_weights()
+        nn.init.uniform_(self.fc3, -EPS, EPS)
 
     def forward(self, x):
         x = F.tanh(self.fc1(x))
@@ -56,22 +62,26 @@ class Value(nn.Module):
         self.state_dim = state_dim
         self.action_dim = action_dim
         self.fcs1 = nn.Linear(self.state_dim, 64)
+        nn.init.uniform_(self.fcs1.weight, -1/math.sqrt(self.state_dim), 1/math.sqrt(self.state_dim))
+
         self.fcs2 = nn.Linear(64, 64)
+        nn.init.uniform_(self.fcs2.weight, -1/math.sqrt(64), 1/math.sqrt(64))
+
         self.fca1 = nn.Linear(self.action_dim, 64)
+        nn.init.uniform_(self.fca1.weight, -1/math.sqrt(self.action_dim), 1/math.sqrt(self.action_dim))
+        
         self.fc2 = nn.Linear(128, 64)
+        nn.init.uniform_(self.fc2, -1/math.sqrt(128), 1/math.sqrt(128))
+
         self.fc3 = nn.Linear(64, 1)
-        self._initialize_weights()
+        nn.init.uniform_(self.fc3.weight, -EPS, EPS)
 
     def forward(self, x, a):
-        # TODO: the existence of fca1 for action input
-        pass   
+        x1 = F.relu(self.fcs1(x))
+        x2 = F.relu(self.fcs2(x1))
+        a1 = F.relu(self.fca1(a))
 
-    def __initialize_weights(self):
-        for m in self.modules():
-            if isinstance(m, (nn.Conv2d, nn.Linear)):
-                nn.init.orthogonal(m.weight())
-            elif isinstance(m, nn.BatchNorm2d):
-                nn.init.constant(m.weight, 1)
-                nn.init.constant(m.bias, 0)
-
+        xx = torch.cat((x2, a1), dim=1)
+        xx = F.relu(self.fc2(xx))
+        return self.fc3(xx)
 

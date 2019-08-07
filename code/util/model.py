@@ -51,7 +51,7 @@ class AbstractPolicy(nn.Module):
     def __initialize_weights_2(self):
         for m in self.modules():
             if isinstance(m, (nn.Conv2d, nn.Linear)):
-                nn.init.orthogonal(m.weight())
+                nn.init.orthogonal(m.weight)
             elif isinstance(m, nn.BatchNorm2d):
                 nn.init.constant(m.weight, 1)
                 nn.init.constant(m.bias, 0)
@@ -104,6 +104,9 @@ class Policy2013(AbstractPolicy):
         x = F.relu(self.fc1(x))
         x = self.fc2(x)
         return x
+
+    def check_conv1(self):
+        return self.conv1.weight.mean()
 
 
 class Value(nn.Module):

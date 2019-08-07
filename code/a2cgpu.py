@@ -163,9 +163,6 @@ def main(gamename):
             R_list.extend(rollout[2])
 
         # after collecting training data,
-        # TODO: we need to build dataset and dataloader
-        # TODO: Loss need to be rebuild
-        # TODO: the use of detach()
         batch_size = len(R_list)
         input_state = torch.cat(frame_list).to(device)
         actor_target = torch.tensor(action_list).to(device).long()

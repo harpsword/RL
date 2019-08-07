@@ -62,7 +62,25 @@ test: Centipede
 4. 重写了entropy项，
 
    1. 有bug，model里的prob 存在Nan值
+   
+5. 将actor与critic的loss分开
+
+
+
+### Experiment Results
+
+Amidar-v0(objective: 674)
+
+![plot123_2](assets/plot123_2.png)
+
+Centipede-v0(objective:4386.4)
+
+![1565144056761](assets/1565144056761.png)
 
 ## Ref
 1. Mnih V, Kavukcuoglu K, Silver D, et al. Playing atari with deep reinforcement learning[J]. arXiv preprint arXiv:1312.5602, 2013.
 2. Mnih V, Kavukcuoglu K, Silver D, et al. Human-level control through deep reinforcement learning[J]. Nature, 2015, 518(7540): 529.
+
+
+
+$\tau$

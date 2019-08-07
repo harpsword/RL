@@ -1,6 +1,7 @@
 """
 using dataset and dataloader instead of np.random.choice
 implementation of PPO algo for Atari Environment
+Paper:[62] Schulman J, Wolski F, Dhariwal P, et al. Proximal Policy Optimization Algorithms.[J]. arXiv: Learning, 2017.
 """
 
 import os
@@ -14,6 +15,7 @@ import numpy as np
 import pandas as pd
 import torch.nn.functional as F
 
+from torch import autograd
 from torch.utils.data import Dataset, DataLoader
 from util.preprocess2015 import ProcessUnit
 from util.model import Policy2013, Value
@@ -25,7 +27,7 @@ try:
     gpu_id = torch.cuda.current_device()
     gpu_device = torch.device(gpu_id)
     device = gpu_device
-except AssertionError:
+except RuntimeError:
     device = cpu_device
 
 storage_path = "../results"
@@ -137,22 +139,7 @@ class Simulator(object):
         for i in range(Lmax):
             frame_now = self.pu.to_torch_tensor()
             # stochastic policy
-            try:
-                action, prob = actor.act_with_prob(frame_now)
-            except ValueError:
-                rr = np.random.randint(1, 300)
-                pu_file = open("pu_file"+str(rr), "wb")
-                pickle.dump(self.pu, pu_file)
-                pu_file.close()
-                model_file = open("model_file"+str(rr), "wb")
-                pickle.dump(actor, model_file)
-                model_file.close()
-
-                print(frame_now)
-                print(frame_now.mean())
-                print(len(self.pu.frame_list))
-                print(i)
-                exit()
+            action, prob = actor.act_with_prob(frame_now)
             r_ = 0
             for j in range(args.FrameSkip):
                 obs, r, done, _ = self.env.step(action)
@@ -290,30 +277,34 @@ def main(gamename):
                 mb_prob = data_l[2].to(device)
                 mb_advan = data_l[3].to(device)
                 mb_critic_target = data_l[4].to(device)
+
+                with autograd.detect_anomaly():
                 
-                mb_new_prob = actor.return_prob(mb_state).to(device)
-                mb_old_prob = mb_prob.reshape(mb_size, 1).mm(torch.ones(1, action_n).to(device))
-                # CLIP Loss
-                prob_div = mb_new_prob / mb_old_prob
-                mb_advan_square = mb_advan.reshape(mb_size, 1).mm(torch.ones(1, action_n).to(device))
-                CLIP_1 = prob_div * mb_advan_square
-                CLIP_2 = prob_div.clamp(1-args.epsilon, 1+args.epsilon) * mb_advan_square
-                loss_clip = - F.nll_loss(torch.Tensor.min(CLIP_1, CLIP_2), mb_action)
-                # entropy loss
-                # TODO: error in here
-                loss_entropy = - (torch.Tensor.log2(mb_new_prob) * mb_new_prob).sum() / mb_size
-                actor_loss = -(loss_clip+args.c2*loss_entropy)
-                actor_optm.zero_grad()
-                actor_loss.backward()
-                actor_optm.step()
+                    mb_new_prob = actor.return_prob(mb_state).to(device)
+                    mb_old_prob = mb_prob.reshape(mb_size, 1).mm(torch.ones(1, action_n).to(device))
+                    # CLIP Loss
+                    prob_div = mb_new_prob / mb_old_prob
+                    mb_advan_square = mb_advan.reshape(mb_size, 1).mm(torch.ones(1, action_n).to(device))
+                    CLIP_1 = prob_div * mb_advan_square
+                    CLIP_2 = prob_div.clamp(1-args.epsilon, 1+args.epsilon) * mb_advan_square
+                    # - is for nll_loss
+                    loss_clip = - F.nll_loss(torch.Tensor.min(CLIP_1, CLIP_2), mb_action)
+                    # entropy loss: -p*ln(p)
+                    loss_entropy = - (torch.Tensor.log2(mb_new_prob+EPS) * mb_new_prob).sum() / mb_size
+                    actor_loss = -(loss_clip+args.c2*loss_entropy)
+                    
+                    actor_optm.zero_grad()
+                    actor_loss.backward()
+                    actor_optm.step()
 
                 # VF loss
                 mb_value_predict = critic(mb_state).flatten()
                 loss_value = torch.Tensor.mean((mb_critic_target-mb_value_predict).pow(2))
                 critic_loss = loss_value
-                critic_optm.zero_grad()
-                critic_loss.backward()
-                critic_optm.step()
+                with autograd.detect_anomaly():
+                    critic_optm.zero_grad()
+                    critic_loss.backward()
+                    critic_optm.step()
                 
                 #print(loss_clip)
                 #print(loss_value)
@@ -326,7 +317,6 @@ def main(gamename):
             gg['lr'] = args.stepsize
         for gg in critic_optm.param_groups:
             gg['lr'] = args.stepsize
-
         if g % 10 == 0:
             print("Gen %s | progross percent:%.2f | time %.2f" % (g, frame_count/args.Tmax*100, time.time()-start_time))
             print("Gen %s | progross %s/%s | time %.2f" % (g, frame_count, args.Tmax, time.time()-start_time))
