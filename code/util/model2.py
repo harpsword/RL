@@ -43,12 +43,12 @@ class Policy(AbstractPolicy):
         nn.init.uniform_(self.fc2.weight, -math.sqrt(64), math.sqrt(64))
 
         self.fc3 = nn.Linear(64, self.action_dim)
-        nn.init.uniform_(self.fc3, -EPS, EPS)
+        nn.init.uniform_(self.fc3.weight, -EPS, EPS)
 
     def forward(self, x):
-        x = F.tanh(self.fc1(x))
-        x = F.tanh(self.fc2(x))
-        x = F.tanh(self.fc3(x))
+        x = torch.tanh(self.fc1(x))
+        x = torch.tanh(self.fc2(x))
+        x = torch.tanh(self.fc3(x))
         # TODO: the use of action_lim
         return x * self.action_lim
 
@@ -71,7 +71,7 @@ class Value(nn.Module):
         nn.init.uniform_(self.fca1.weight, -1/math.sqrt(self.action_dim), 1/math.sqrt(self.action_dim))
         
         self.fc2 = nn.Linear(128, 64)
-        nn.init.uniform_(self.fc2, -1/math.sqrt(128), 1/math.sqrt(128))
+        nn.init.uniform_(self.fc2.weight, -1/math.sqrt(128), 1/math.sqrt(128))
 
         self.fc3 = nn.Linear(64, 1)
         nn.init.uniform_(self.fc3.weight, -EPS, EPS)

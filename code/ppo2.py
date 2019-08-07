@@ -290,6 +290,7 @@ def main(gamename):
                     # - is for nll_loss
                     loss_clip = - F.nll_loss(torch.Tensor.min(CLIP_1, CLIP_2), mb_action)
                     # entropy loss: -p*ln(p)
+                    # +EPS for the existence of Nan in actor model in backpropagation
                     loss_entropy = - (torch.Tensor.log2(mb_new_prob+EPS) * mb_new_prob).sum() / mb_size
                     actor_loss = -(loss_clip+args.c2*loss_entropy)
                     

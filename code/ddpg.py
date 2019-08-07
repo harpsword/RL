@@ -10,11 +10,13 @@ import torch
 import gym
 import random
 import pandas as pd
+import numpy as np
 import torch.nn.functional as F
 
-from data import Data
+from util.data import Data
 from util.model2 import Policy, Value
 from util.tools import soft_update
+
 
 class OrnsteinUhlenbeckActionNoise:
     """
@@ -22,21 +24,21 @@ class OrnsteinUhlenbeckActionNoise:
     ref: https://github.com/vy007vikas/PyTorch-ActorCriticRL/blob/master/utils.py
     """
 
-	def __init__(self, action_dim, mu = 0, theta = 0.15, sigma = 0.2):
-		self.action_dim = action_dim
-		self.mu = mu
-		self.theta = theta
-		self.sigma = sigma
-		self.X = np.ones(self.action_dim) * self.mu
+    def __init__(self, action_dim, mu=0, theta=0.15, sigma=0.2):
+        self.action_dim = action_dim
+        self.mu = mu
+        self.theta = theta
+        self.sigma = sigma
+        self.X = np.ones(self.action_dim) * self.mu
 
-	def reset(self):
-		self.X = np.ones(self.action_dim) * self.mu
+    def reset(self):
+        self.X = np.ones(self.action_dim) * self.mu
 
-	def sample(self):
-		dx = self.theta * (self.mu - self.X)
-		dx = dx + self.sigma * np.random.randn(len(self.X))
-		self.X = self.X + dx
-		return self.X
+    def sample(self):
+        dx = self.theta * (self.mu - self.X)
+        dx = dx + self.sigma * np.random.randn(len(self.X))
+        self.X = self.X + dx
+        return self.X
 
 
 class args(object):
@@ -86,11 +88,11 @@ class DDPGTrainer(object):
 
     def get_action(self, obs):
         # with noise
-        action = self.actor(obs).detach() + self.noise.sample()
+        action = self.actor(obs).detach() + torch.from_numpy(self.noise.sample()).float()
         return action.clamp(-self.action_lim, self.action_lim)
 
     def get_target_action(self, obs):
-        return action = self.target_actor(obs).detach()
+        return self.target_actor(obs).detach()
 
     def optimize(self):
         if len(self.replay_buffer.data) < args.min_buffersize:
@@ -98,14 +100,19 @@ class DDPGTrainer(object):
         s1_arr, a_arr, r_arr, s2_arr, done_arr = self.replay_buffer.sample(args.batchsize)
         state = torch.cat(s1_arr)
         action = torch.cat(a_arr)
-        reward = torch.Tensor(r_arr)
+        reward = torch.Tensor(r_arr).reshape(args.batchsize, 1)
         next_state = torch.cat(s2_arr)
         # 0 means done
-        done = torch.Tensor(done_arr)
+        done = torch.Tensor(done_arr).reshape(args.batchsize, 1)
+        # print(state.shape)
+        # print(action.shape)
+        # print(reward.shape)
+        # print(next_state.shape)
+        # print(done.shape)
         #------- update critic -----------
-        new_action = self.get_target_action(new_action)
+        new_action = self.get_target_action(next_state)
         y_target = reward + done * self.target_critic(next_state, new_action).detach()
-        y_pred = self.critic(state)
+        y_pred = self.critic(state, action)
         critic_loss = F.mse_loss(y_pred, y_target)
         self.critic_optm.zero_grad()
         critic_loss.backward()
@@ -118,15 +125,19 @@ class DDPGTrainer(object):
         actor_loss.backward()
         self.actor_optm.step()
         #--------soft update target actor and critic----
-        soft_update(self.critic, self.target_critic)
-        soft_update(self.actor, self.target_actor)
+        soft_update(self.critic, self.target_critic, args.tau)
+        soft_update(self.actor, self.target_actor, args.tau)
 
     def save_model(self, gamename, reward_list):
         timenow = time.localtime(time.time())
-        filename = "ddpg-"+gamename+'-'+str(timenow.tm_year)+"-"+str(timenow.tm_mon)+"-"+str(timenow.tm_day)
+        filename = "ddpg-"+gamename+'-'+str(timenow.tm_year)+"-"+str(timenow.tm_mon)+"-"+str(timenow.tm_mday)
         torch.save(self.actor.state_dict(), os.path.join(args.model_path, filename+"-actor.pt"))
         torch.save(self.critic.state_dict(), os.path.join(args.model_path, filename+'-critic.pt'))
-        record = pd.DataFrame(reward_list)
+        try:
+            record = pd.DataFrame(reward_list)
+        except TypeError:
+            print(reward_list)
+            record = pd.DataFrame(reward_list)
         record.to_csv(os.path.join(args.reward_path, filename+'-reward.csv'))
 
 
@@ -145,6 +156,7 @@ def check_env(env):
 @click.command()
 @click.option("--gamename")
 def main(gamename):
+    t0 = time.time()
     env = gym.make(gamename)
     state_dim, action_dim, action_lim = check_env(env)
     replay_buffer = Data(args.buffersize)
@@ -155,23 +167,24 @@ def main(gamename):
     for episode in range(args.max_episode):
         trainer.init_episode()
         obs = env.reset()
-        obs = torch.from_numpy(obs)
+        obs = torch.from_numpy(obs).reshape(1, state_dim).float()
         reward_episode = 0
         for i in range(args.T):
             action = trainer.get_action(obs) 
             new_obs, r, done, _ = env.step(action)
-            new_obs = torch.from_numpy(new_obs)
-            reward_episode += r
+            new_obs = torch.from_numpy(new_obs).reshape(1, state_dim).float()
+            reward_episode += r.item()
             sequence  = [obs, action, reward_episode, new_obs, 0 if done else 1]
-            replayer_buffer.put(sequence)
+            replay_buffer.push(sequence)
             obs = new_obs
-
             trainer.optimize()
-
             if done:
                 break
+
         frame_count += i
         reward_list.append(reward_episode)
+        if episode % 20 == 0:
+            print("episode:%s, reward:%.2f, %s/%s, time:%s" % (episode, np.array(reward_list[max(len(reward_list)-10, 0):-1]).mean(), frame_count, args.Tmax, time.time()-t0))
         if frame_count > args.Tmax:
             break
         if episode % 10 == 0:
