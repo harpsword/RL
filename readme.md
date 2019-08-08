@@ -39,6 +39,8 @@ Notice: the preprocessing will be applied to the m most recent frames and stacks
 
 ## PPO(PPO2)
 
+[Schulman et al., 2017]
+
 ### Atari
 Tmax = 40M
 
@@ -65,7 +67,8 @@ test: Centipede
    
 5. 将actor与critic的loss分开
 
-
+   1. 4中的bug来自于log2函数的反向传播，解决方法为:log2(..+EPS), EPS=1e-10
+   2. 有advantage norm
 
 ### Experiment Results
 
@@ -73,14 +76,26 @@ Amidar-v0(objective: 674)
 
 ![plot123_2](assets/plot123_2.png)
 
+Assault-v0(objective:4971)
+
+![1565228155403](assets/1565228155403.png)
+
 Centipede-v0(objective:4386.4)
 
-![1565144056761](assets/1565144056761.png)
+![1565227950317](assets/1565227950317.png)
+
+Qbert-v0(objective:14293)
+
+![1565228105225](assets/1565228105225.png)
+
+## DDPG
+
+[Lillicrap  et al., 2015]
 
 ## Ref
 1. Mnih V, Kavukcuoglu K, Silver D, et al. Playing atari with deep reinforcement learning[J]. arXiv preprint arXiv:1312.5602, 2013.
 2. Mnih V, Kavukcuoglu K, Silver D, et al. Human-level control through deep reinforcement learning[J]. Nature, 2015, 518(7540): 529.
+3. Lillicrap T P, Hunt J J, Pritzel A, et al. Continuous control with deep reinforcement learning[J]. arXiv preprint arXiv:1509.02971, 2015.
+4. Schulman J, Wolski F, Dhariwal P, et al. Proximal Policy Optimization Algorithms.[J]. arXiv: Learning, 2017.
 
 
-
-$\tau$

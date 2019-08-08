@@ -21,14 +21,8 @@ from util.preprocess2015 import ProcessUnit
 from util.model import Policy2013, Value
 from util.tools import save_record
 
-cpu_device = torch.device('cpu')
-device = cpu_device
-try:
-    gpu_id = torch.cuda.current_device()
-    gpu_device = torch.device(gpu_id)
-    device = gpu_device
-except RuntimeError:
-    device = cpu_device
+cpu_device = torch.device("cpu")
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 storage_path = "../results"
 EPS = 1e-10

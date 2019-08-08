@@ -1,6 +1,9 @@
 """
 Implementation of DDPG algo for MuJoCo
 Paper: [63] Lillicrap T P, Hunt J J, Pritzel A, et al. Continuous control with deep reinforcement learning[J]. arXiv preprint arXiv:1509.02971, 2015.
+
+TD3 version
+hyperparameter comes from [64] Fujimoto S, Van Hoof H, Meger D, et al. Addressing Function Approximation Error in Actor-Critic Methods[J]. international conference on machine learning, 2018: 1582-1591.
 """
 
 import os
@@ -22,29 +25,6 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 device = cpu_device
 
 
-class OrnsteinUhlenbeckActionNoise:
-    """
-    Based on http://math.stackexchange.com/questions/1287634/implementing-ornstein-uhlenbeck-in-matlab
-    ref: https://github.com/vy007vikas/PyTorch-ActorCriticRL/blob/master/utils.py
-    """
-
-    def __init__(self, action_dim, mu=0, theta=0.15, sigma=0.2):
-        self.action_dim = action_dim
-        self.mu = mu
-        self.theta = theta
-        self.sigma = sigma
-        self.X = np.ones(self.action_dim) * self.mu
-
-    def reset(self):
-        self.X = np.ones(self.action_dim) * self.mu
-
-    def sample(self):
-        dx = self.theta * (self.mu - self.X)
-        dx = dx + self.sigma * np.random.randn(len(self.X))
-        self.X = self.X + dx
-        return self.X
-
-
 class args(object):
     # 1 Million
     Tmax = int(2e6)
@@ -52,18 +32,15 @@ class args(object):
     max_episode = int(1e6) 
     Gamma = 0.99
 
-    tau = 0.001
+    tau = 0.005
     # optimizer : Adam
-    actor_lr = 1e-4
+    actor_lr = 1e-3
     critic_lr = 1e-3
 
-    batchsize = 64
+    batchsize = 100 
     buffersize = int(1e6)
     min_buffersize = int(1e3)
 
-    # Exploration Noise:Ornstein-Uhlenbeck process
-    theta = 0.15
-    sigma = 0.2
     # storage path
     model_path = "../model/"
     reward_path = "../reward/"
@@ -76,7 +53,6 @@ class DDPGTrainer(object):
         self.action_dim = action_dim
         self.action_lim = action_lim
         self.replay_buffer = replay_buffer
-        self.noise = OrnsteinUhlenbeckActionNoise(action_dim, theta=args.theta, sigma=args.sigma)
         self.actor = Policy(state_dim, action_dim, action_lim)
         self.critic = Value(state_dim, action_dim)
         self.actor_optm = torch.optim.Adam(self.actor.parameters(), lr=args.actor_lr)
@@ -93,11 +69,12 @@ class DDPGTrainer(object):
         self.target_actor.to(device)
 
     def init_episode(self):
-        self.noise.reset()
+        pass
 
     def get_action(self, obs):
         # with noise
-        action = self.actor(obs).detach() + torch.from_numpy(self.noise.sample()).to(device).float()
+        action = self.actor(obs).detach()
+        action = action + torch.randn_like(action) * 0.1
         return action.clamp(-self.action_lim, self.action_lim)
 
     def get_target_action(self, obs):
@@ -115,7 +92,7 @@ class DDPGTrainer(object):
         done = torch.Tensor(done_arr).reshape(args.batchsize, 1).to(device)
         #------- update critic -----------
         new_action = self.get_target_action(next_state)
-        y_target = reward + args.Gamma * done * self.target_critic(next_state, new_action).detach()
+        y_target = reward + done * self.target_critic(next_state, new_action).detach() * args.Gamma
         y_pred = self.critic(state, action)
         critic_loss = F.mse_loss(y_pred, y_target)
         self.critic_optm.zero_grad()
@@ -189,15 +166,17 @@ def main(gamename):
             actor_loss_l.append(actor_loss)
             if done:
                 break
-            
 
         frame_count += i
         reward_list.append(reward_episode)
-        if episode % 50 == 0:
+        if episode % 500 == 0:
+            #print(np.array(critic_loss).mean())
+            #print(np.array(actor_loss).mean())
+        
             print("episode:%s, reward:%.2f, %s/%s, time:%s" % (episode, np.array(reward_list[max(len(reward_list)-10, 0):]).mean(), frame_count, args.Tmax, time.time()-t0))
         if frame_count > args.Tmax:
             break
-        if episode % 10 == 0:
+        if episode % 500 == 0:
             trainer.save_model(gamename, reward_list)
 
 if __name__ == "__main__":

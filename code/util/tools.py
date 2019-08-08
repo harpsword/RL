@@ -20,6 +20,12 @@ def save_record(ids, folder_dir, filename):
 
 
 def soft_update(a, b, tau):
+    """
+    another method for updating target model's parameter softly
+    come from https://github.com/sfujim/TD3/blob/master/TD3.py
+    for param, target_param in zip(a.parameters(), b.parameters()):
+        target_param.data.copy_(tau * param.data + (1 - tau) * target_param.data)
+    """
     # using a to update b softly
     for name, value in b.named_parameters():
         tmp = a

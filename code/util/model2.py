@@ -36,20 +36,20 @@ class Policy(AbstractPolicy):
         self.state_dim = state_dim
         self.action_dim = action_dim
         self.action_lim = action_lim
-        self.fc1 = nn.Linear(self.state_dim, 64)
+        self.fc1 = nn.Linear(self.state_dim, 400)
         nn.init.uniform_(self.fc1.weight, -math.sqrt(state_dim), math.sqrt(state_dim))
 
-        self.fc2 = nn.Linear(64, 64)
-        nn.init.uniform_(self.fc2.weight, -math.sqrt(64), math.sqrt(64))
+        self.fc2_in = 400
+        self.fc2 = nn.Linear(self.fc2_in, 300)
+        nn.init.uniform_(self.fc2.weight, -math.sqrt(self.fc2_in), math.sqrt(self.fc2_in))
 
-        self.fc3 = nn.Linear(64, self.action_dim)
+        self.fc3 = nn.Linear(300, self.action_dim)
         nn.init.uniform_(self.fc3.weight, -EPS, EPS)
 
     def forward(self, x):
-        x = torch.tanh(self.fc1(x))
-        x = torch.tanh(self.fc2(x))
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
         x = torch.tanh(self.fc3(x))
-        # TODO: the use of action_lim
         return x * self.action_lim
 
 
@@ -61,27 +61,20 @@ class Value(nn.Module):
         super(Value, self).__init__()
         self.state_dim = state_dim
         self.action_dim = action_dim
-        self.fcs1 = nn.Linear(self.state_dim, 64)
-        nn.init.uniform_(self.fcs1.weight, -1/math.sqrt(self.state_dim), 1/math.sqrt(self.state_dim))
+        fc1_input = state_dim + action_dim
+        self.fc1 = nn.Linear(fc1_input, 400)
+        nn.init.uniform_(self.fc1.weight, -1/math.sqrt(fc1_input), 1/math.sqrt(fc1_input))
 
-        self.fcs2 = nn.Linear(64, 64)
-        nn.init.uniform_(self.fcs2.weight, -1/math.sqrt(64), 1/math.sqrt(64))
+        self.fc2_in = 400
+        self.fc2 = nn.Linear(self.fc2_in, 300)
+        nn.init.uniform_(self.fc2.weight, -1/math.sqrt(self.fc2_in), 1/math.sqrt(self.fc2_in))
 
-        self.fca1 = nn.Linear(self.action_dim, 64)
-        nn.init.uniform_(self.fca1.weight, -1/math.sqrt(self.action_dim), 1/math.sqrt(self.action_dim))
-        
-        self.fc2 = nn.Linear(128, 64)
-        nn.init.uniform_(self.fc2.weight, -1/math.sqrt(128), 1/math.sqrt(128))
-
-        self.fc3 = nn.Linear(64, 1)
+        self.fc3 = nn.Linear(300, 1)
         nn.init.uniform_(self.fc3.weight, -EPS, EPS)
 
     def forward(self, x, a):
-        x1 = F.relu(self.fcs1(x))
-        x2 = F.relu(self.fcs2(x1))
-        a1 = F.relu(self.fca1(a))
-
-        xx = torch.cat((x2, a1), dim=1)
-        xx = F.relu(self.fc2(xx))
-        return self.fc3(xx)
+        xi = torch.cat((x, a), dim=1)
+        xi = F.relu(self.fc1(xi))
+        xi = F.relu(self.fc2(xi))
+        return self.fc3(xi)
 
