@@ -192,7 +192,7 @@ def main(gamename):
                 break
 
         reward_list.append(reward_episode)
-        if episode % 500 == 0:
+        if episode % 50 == 0:
             print("episode:%s, reward:%.2f, %s/%s, time:%s" % (episode, np.array(reward_list[max(len(reward_list)-10, 0):]).mean(), frame_count, args.Tmax, time.time()-t0))
         if frame_count > args.Tmax:
             break
