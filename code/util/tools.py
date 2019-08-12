@@ -33,3 +33,14 @@ def soft_update(a, b, tau):
             tmp = getattr(tmp, attr_value)
         value.data = tau * tmp.data + (1 - tau) * value.data
 
+
+def check_env(env):
+    state_dim = env.observation_space.shape[0]
+    action_dim = env.action_space.shape[0]
+    action_high = env.action_space.high
+    action_low = env.action_space.low
+    assert len(action_low) == len(action_high)
+    for i in range(len(action_low)):
+        if abs(action_low[i]) != abs(action_high[i]):
+            raise ValueError("Environment Error with wrong action low and high")
+    return state_dim, action_dim, action_high[0]
