@@ -92,10 +92,20 @@ Qbert-v0(objective:14293)
 
 [Lillicrap  et al., 2015]
 
+### MuJoCo
+reference paper[Fujimoto et al., 2018]
+
+problem:
+1. actor测试的结果几乎不变(Ant-v2环境)
+   1. 解决的方法：不采用原文中对模型的初始化方法，采用pytorch的默认初始化方法
+   2. 原因猜测：模型初始化后在非激活区，导致对模型参数变化少。
+
+
 ## Ref
 1. Mnih V, Kavukcuoglu K, Silver D, et al. Playing atari with deep reinforcement learning[J]. arXiv preprint arXiv:1312.5602, 2013.
 2. Mnih V, Kavukcuoglu K, Silver D, et al. Human-level control through deep reinforcement learning[J]. Nature, 2015, 518(7540): 529.
 3. Lillicrap T P, Hunt J J, Pritzel A, et al. Continuous control with deep reinforcement learning[J]. arXiv preprint arXiv:1509.02971, 2015.
 4. Schulman J, Wolski F, Dhariwal P, et al. Proximal Policy Optimization Algorithms.[J]. arXiv: Learning, 2017.
+5. Fujimoto S, Van Hoof H, Meger D, et al. Addressing Function Approximation Error in Actor-Critic Methods[J]. international conference on machine learning, 2018: 1582-1591.
 
 

@@ -125,7 +125,7 @@ def main(gamename, seed, algo, task_id):
 @click.command()
 @click.option("--algo", type=click.Choice(['ddpg', 'td3']))
 def run_all(algo):
-    envs_list = ['HalfCheetah-v2', 'Hopper-v2', 'Humanoid-v2',
+    envs_list = ['Ant-v2', 'HalfCheetah-v2', 'Hopper-v2', 'Humanoid-v2',
                  'HumanoidStandup-v2','InvertedDoublePendulum-v2',
                  'Swimmer-v2', 'Walker2d-v2', 'InvertedPendulum-v2', 'Reacher-v2']
     env_list = [gym.make(env_name) for env_name in envs_list]
@@ -144,5 +144,5 @@ def run_all(algo):
 if __name__ == '__main__':
     # object_store_memory: 80G
     # redis_max_memory: 40G
-    ray.init(num_cpus=24, num_gpus=3, object_store_memory=85899345920, redis_max_memory=42949672960)
+    ray.init(num_cpus=20, num_gpus=2, object_store_memory=85899345920, redis_max_memory=42949672960)
     run_all()

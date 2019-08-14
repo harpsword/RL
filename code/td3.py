@@ -143,7 +143,7 @@ class TD3Trainer(object):
 
     def save_model(self, gamename, reward_list, seed):
         timenow = time.localtime(time.time())
-        filename = "td3-"+gamename+'-'+str(timenow.tm_year)+"-"+str(timenow.tm_mon)+"-"+str(timenow.tm_mday)+"-seed-"+str(seed)+"-"
+        filename = "td3-"+gamename+str(timenow.tm_mday)+"-seed-"+str(seed)+"-"
         torch.save(self.actor.state_dict(), os.path.join(args.model_path, filename+"-actor.pt"))
         torch.save(self.critic1.state_dict(), os.path.join(args.model_path, filename+'-critic1.pt'))
         torch.save(self.critic2.state_dict(), os.path.join(args.model_path, filename+'-critic2.pt'))

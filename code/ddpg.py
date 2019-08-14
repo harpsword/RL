@@ -125,7 +125,7 @@ class DDPGTrainer(object):
 
     def save_model(self, gamename, reward_list, seed):
         timenow = time.localtime(time.time())
-        filename = "ddpg-"+gamename+'-'+str(timenow.tm_year)+"-"+str(timenow.tm_mon)+"-"+str(timenow.tm_mday)+"-seed-"+str(seed)+"-"
+        filename = "ddpg-"+gamename+"-"+str(timenow.tm_mday)+"-seed-"+str(seed)+"-"
         torch.save(self.actor.state_dict(), os.path.join(args.model_path, filename+"-actor.pt"))
         torch.save(self.critic.state_dict(), os.path.join(args.model_path, filename+'-critic.pt'))
         try:
