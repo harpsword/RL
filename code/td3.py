@@ -12,15 +12,66 @@ import gym
 import random
 import pandas as pd
 import numpy as np
+import torch.nn as nn
 import torch.nn.functional as F
 
 from util.data import Data
-from util.model2 import Policy, Value
 from util.tools import soft_update
 
 cpu_device = torch.device("cpu")
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-#device = cpu_device
+device = cpu_device
+
+
+class Policy(nn.Module):
+	def __init__(self, state_dim, action_dim, max_action):
+		super(Policy, self).__init__()
+
+		self.l1 = nn.Linear(state_dim, 400)
+		self.l2 = nn.Linear(400, 300)
+		self.l3 = nn.Linear(300, action_dim)
+		self.max_action = max_action
+
+	def forward(self, x):
+		x = F.relu(self.l1(x))
+		x = F.relu(self.l2(x))
+		x = self.max_action * torch.tanh(self.l3(x)) 
+		return x
+
+
+class Value(nn.Module):
+	def __init__(self, state_dim, action_dim):
+		super(Value, self).__init__()
+
+		# Q1 architecture
+		self.l1 = nn.Linear(state_dim + action_dim, 400)
+		self.l2 = nn.Linear(400, 300)
+		self.l3 = nn.Linear(300, 1)
+
+		# Q2 architecture
+		self.l4 = nn.Linear(state_dim + action_dim, 400)
+		self.l5 = nn.Linear(400, 300)
+		self.l6 = nn.Linear(300, 1)
+
+	def forward(self, x, u):
+		xu = torch.cat([x, u], 1)
+
+		x1 = F.relu(self.l1(xu))
+		x1 = F.relu(self.l2(x1))
+		x1 = self.l3(x1)
+
+		x2 = F.relu(self.l4(xu))
+		x2 = F.relu(self.l5(x2))
+		x2 = self.l6(x2)
+		return x1, x2
+
+	def Q1(self, x, u):
+		xu = torch.cat([x, u], 1)
+
+		x1 = F.relu(self.l1(xu))
+		x1 = F.relu(self.l2(x1))
+		x1 = self.l3(x1)
+		return x1 
 
 
 class args(object):
@@ -63,20 +114,14 @@ class TD3Trainer(object):
         self.action_lim = action_lim
         self.replay_buffer = replay_buffer
         self.actor = Policy(state_dim, action_dim, action_lim).to(device)
-        self.critic1 = Value(state_dim, action_dim).to(device)
-        self.critic2 = Value(state_dim, action_dim).to(device)
-
-        self.actor_optm = torch.optim.Adam(self.actor.parameters(), lr=args.actor_lr)
-        self.critic1_optm = torch.optim.Adam(self.critic1.parameters(), lr=args.critic_lr)
-        self.critic2_optm = torch.optim.Adam(self.critic2.parameters(), lr=args.critic_lr)
-
         self.target_actor = Policy(state_dim, action_dim, action_lim).to(device)
         self.target_actor.load_state_dict(self.actor.state_dict())
+        self.actor_optm = torch.optim.Adam(self.actor.parameters(), lr=args.actor_lr)
 
-        self.target_critic1 = Value(state_dim, action_dim).to(device)
-        self.target_critic1.load_state_dict(self.critic1.state_dict())
-        self.target_critic2 = Value(state_dim, action_dim).to(device)
-        self.target_critic2.load_state_dict(self.critic1.state_dict())
+        self.critic = Value(state_dim, action_dim).to(device)
+        self.critic_optm = torch.optim.Adam(self.critic.parameters(), lr=args.critic_lr)
+        self.target_critic = Value(state_dim, action_dim).to(device)
+        self.target_critic.load_state_dict(self.critic.state_dict())
 
     def init_episode(self):
         pass
@@ -105,38 +150,28 @@ class TD3Trainer(object):
             # 0 means over
             done = torch.Tensor(done_arr).reshape(args.batchsize, 1).to(device)
             #------- update critic -----------
-            new_action = self.get_target_action(next_state)
             epsilon = torch.randn_like(new_action) * args.sigma_clamp
+            epsilon = epsilon.clamp(-args.c, args.c)
             # target policy smoothing
-            new_action += epsilon.clamp(-args.c, args.c)
+            new_action = (self.target_actor(next_state)+epsilon).clamp(-self.action_lim, self.action_lim)
             
-            q1 = self.target_critic1(next_state, new_action).detach()
-            q2 = self.target_critic2(next_state, new_action).detach()
-            y_target = reward + args.Gamma * done * torch.min(q1, q2)
+            q1, q2 = self.target_critic(next_state, new_action)
+            y_target = reward + args.Gamma * done * torch.min(q1, q2).detach()
             
-            y1 = self.critic1(state, action)
-            critic1_loss = F.mse_loss(y1, y_target)
-            self.critic1_optm.zero_grad()
-            critic1_loss.backward()
-            self.critic1_optm.step()
-            
-            y2 = self.critic2(state, action)
-            critic2_loss = F.mse_loss(y2, y_target)
-            self.critic2_optm.zero_grad()
-            critic2_loss.backward()
-            self.critic2_optm.step()
+            y1_pred, y2_pred = self.critic(state, action)
+            critic_loss = F.mse_loss(y_pred1, y_target) + F.mse_loss(y_pred2, y_target)
+            self.critic_optm.zero_grad()
+            critic_loss.backward()
+            self.critic_optm.step()
             #--------update actor---------------
             if i % args.d == 0:
-                action_pred = self.actor(state)
                 # - means smaller the loss, bigger the Q(s,a)
-                actor_loss = -torch.Tensor.mean(self.critic1(state, action_pred))
+                actor_loss = -torch.Tensor.mean(self.critic.Q1(state, self.actor(state)))
                 self.actor_optm.zero_grad()
                 actor_loss.backward()
                 self.actor_optm.step()
                 #--------soft update target actor and critic----
-                for param, target_param in zip(self.critic1.parameters(), self.target_critic1.parameters()):
-                    target_param.data.copy_(args.tau * param.data + (1-args.tau)*target_param.data)
-                for param, target_param in zip(self.critic2.parameters(), self.target_critic2.parameters()):
+                for param, target_param in zip(self.critic.parameters(), self.target_critic.parameters()):
                     target_param.data.copy_(args.tau * param.data + (1-args.tau)*target_param.data)
                 for param, target_param in zip(self.actor.parameters(), self.target_actor.parameters()):
                     target_param.data.copy_(args.tau * param.data + (1-args.tau)*target_param.data)
@@ -145,8 +180,7 @@ class TD3Trainer(object):
         timenow = time.localtime(time.time())
         filename = "td3-"+gamename+str(timenow.tm_mday)+"-seed-"+str(seed)+"-"
         torch.save(self.actor.state_dict(), os.path.join(args.model_path, filename+"-actor.pt"))
-        torch.save(self.critic1.state_dict(), os.path.join(args.model_path, filename+'-critic1.pt'))
-        torch.save(self.critic2.state_dict(), os.path.join(args.model_path, filename+'-critic2.pt'))
+        torch.save(self.critic.state_dict(), os.path.join(args.model_path, filename+'-critic.pt'))
         try:
             record = pd.DataFrame(reward_list)
         except TypeError:

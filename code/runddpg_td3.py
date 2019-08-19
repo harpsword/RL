@@ -16,7 +16,7 @@ from td3 import TD3Trainer
 class args(object):
     # 1 Million
     Tmax = int(1e6)
-    T = 2000
+    T = 1001
     max_episode = int(1e6) 
     start_timesteps = int(1e4)
     eval_freq = int(5e3)
@@ -51,8 +51,8 @@ def evaluate_policy(env, policy, eval_episodes=10):
     return avg_reward
 
 
-@ray.remote(num_gpus=0.1)
-def main(gamename, seed, algo, task_id):
+@ray.remote
+def main2(gamename, seed, algo, task_id):
     env = gym.make(gamename)
     print("start running task", task_id)
     t0 = time.time()
@@ -72,7 +72,6 @@ def main(gamename, seed, algo, task_id):
 
     frame_count = 0
     timestep_since_eval = 0
-    timestep_since_save = 0
     reward_list = []
     evaluations = []
     for episode in range(args.max_episode):
@@ -91,46 +90,44 @@ def main(gamename, seed, algo, task_id):
             new_obs = torch.from_numpy(new_obs).reshape(1, state_dim).float()
             reward_episode += r
             sequence  = [obs, torch.from_numpy(action).reshape(1, action_dim).float(), reward_episode, new_obs, 0 if done else 1]
-
             replay_buffer.push(sequence)
             obs = new_obs
+            frame_count += 1
+            timestep_since_eval += 1
             if done:
                 break
         trainer.optimize(i)
 
-        frame_count += i
-        timestep_since_eval += i
-        timestep_since_save += i
         reward_list.append(reward_episode)
 
         if timestep_since_eval > args.eval_freq:
             timestep_since_eval %= args.eval_freq 
             evaluations.append(evaluate_policy(env, trainer))
-
-        if timestep_since_save > args.save_freq:
             trainer.save_model(gamename, evaluations, seed)
-            timestep_since_save %= args.save_freq
 
-        if episode % 50 == 0:
-            #print(np.array(critic_loss).mean())
-            #print(np.array(actor_loss).mean())
-            #print("episode:%s, reward:%.2f, %s/%s, time:%s" % (episode, reward_episode, frame_count, args.Tmax, time.time()-t0))
-            pass
         if frame_count > args.Tmax:
             break
     trainer.save_model(gamename, evaluations, seed)
-    return "over"
+    return "Over"
 
 
-@click.command()
-@click.option("--algo", type=click.Choice(['ddpg', 'td3']))
-def run_all(algo):
+@ray.remote
+def main(gamename, seed, algo, task_id):
+    print("start running task", task_id)
+    return True
+
+
+#@click.command()
+#@click.option("--algo", type=click.Choice(['ddpg', 'td3']))
+def run_all():
     envs_list = ['Ant-v2', 'HalfCheetah-v2', 'Hopper-v2', 'Humanoid-v2',
                  'HumanoidStandup-v2','InvertedDoublePendulum-v2',
                  'Swimmer-v2', 'Walker2d-v2', 'InvertedPendulum-v2', 'Reacher-v2']
-    env_list = [gym.make(env_name) for env_name in envs_list]
+    algo_list = ['ddpg', 'td3']
     seed_list = [np.random.randint(0, 1000000) for i in range(5)]
     job_list = []
+    print(seed_list)
+    algo = 'ddpg'
 
     idx = 0
     for seed in seed_list:
@@ -144,5 +141,6 @@ def run_all(algo):
 if __name__ == '__main__':
     # object_store_memory: 80G
     # redis_max_memory: 40G
-    ray.init(num_cpus=20, num_gpus=2, object_store_memory=85899345920, redis_max_memory=42949672960)
+    #ray.init(num_cpus=20, num_gpus=2, object_store_memory=85899345920, redis_max_memory=42949672960)
+    ray.init(num_cpus=20, object_store_memory=1024*1024*1024*40, redis_max_memory=1024*1024*1024*20)
     run_all()

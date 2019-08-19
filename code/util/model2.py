@@ -37,14 +37,11 @@ class Policy(AbstractPolicy):
         self.action_dim = action_dim
         self.action_lim = action_lim
         self.fc1 = nn.Linear(self.state_dim, 400)
-        #nn.init.uniform_(self.fc1.weight, -math.sqrt(state_dim), math.sqrt(state_dim))
 
         self.fc2_in = 400
         self.fc2 = nn.Linear(self.fc2_in, 300)
-        #nn.init.uniform_(self.fc2.weight, -math.sqrt(self.fc2_in), math.sqrt(self.fc2_in))
 
         self.fc3 = nn.Linear(300, self.action_dim)
-        #nn.init.uniform_(self.fc3.weight, -EPS, EPS)
 
     def forward(self, x):
         x = F.relu(self.fc1(x))
@@ -54,23 +51,14 @@ class Policy(AbstractPolicy):
 
 
 class Value(nn.Module):
-    """
-    Input: (N, 4, 84, 84)
-    """
     def __init__(self, state_dim, action_dim):
         super(Value, self).__init__()
         self.state_dim = state_dim
         self.action_dim = action_dim
         fc1_input = state_dim + action_dim
         self.fc1 = nn.Linear(fc1_input, 400)
-        #nn.init.uniform_(self.fc1.weight, -1/math.sqrt(fc1_input), 1/math.sqrt(fc1_input))
-
-        self.fc2_in = 400
-        self.fc2 = nn.Linear(self.fc2_in, 300)
-        #nn.init.uniform_(self.fc2.weight, -1/math.sqrt(self.fc2_in), 1/math.sqrt(self.fc2_in))
-
+        self.fc2 = nn.Linear(400, 300)
         self.fc3 = nn.Linear(300, 1)
-        #nn.init.uniform_(self.fc3.weight, -EPS, EPS)
 
     def forward(self, x, a):
         xi = torch.cat([x, a], dim=1)

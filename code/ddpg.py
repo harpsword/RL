@@ -22,7 +22,7 @@ from util.tools import soft_update
 
 cpu_device = torch.device("cpu")
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-#device = cpu_device
+device = cpu_device
 
 
 class args(object):
@@ -120,8 +120,6 @@ class DDPGTrainer(object):
                 target_param.data.copy_(args.tau * param.data + (1-args.tau)*target_param.data)
             for param, target_param in zip(self.actor.parameters(), self.target_actor.parameters()):
                 target_param.data.copy_(args.tau * param.data + (1-args.tau)*target_param.data)
-            #soft_update(self.critic, self.target_critic, args.tau)
-            #soft_update(self.actor, self.target_actor, args.tau)
 
     def save_model(self, gamename, reward_list, seed):
         timenow = time.localtime(time.time())
