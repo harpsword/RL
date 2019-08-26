@@ -2,3 +2,6 @@
 */log/*
 *.pyc
 *.csv
+*.png
+*.jpg
+.npy

@@ -26,7 +26,8 @@ def evaluate_policy(env, policy, eval_episodes=10):
 
     avg_reward /= eval_episodes
 
-    print("---------------------------------------")
+    print("---------------------------------
+------")
     print("Evaluation over %d episodes: %f" % (eval_episodes, avg_reward))
     print("---------------------------------------")
     return avg_reward
@@ -198,7 +199,6 @@ def run_all():
     envs_list = ['Ant-v2', 'HalfCheetah-v2', 'Hopper-v2', 'Humanoid-v2',
                  'HumanoidStandup-v2', 'InvertedDoublePendulum-v2',
                  'Swimmer-v2', 'Walker2d-v2', 'InvertedPendulum-v2', 'Reacher-v2']
-    env_list = [gym.make(env_name) for env_name in envs_list]
     seed_list = [np.random.randint(0, 1000000) for i in range(5)]
     algo_list = ["TD3", "DDPG", "OurDDPG"]
     job_list = []
