@@ -22,7 +22,6 @@ from util.tools import soft_update
 
 cpu_device = torch.device("cpu")
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-device = cpu_device
 
 
 class args(object):
@@ -123,7 +122,7 @@ class DDPGTrainer(object):
 
     def save_model(self, gamename, reward_list, seed):
         timenow = time.localtime(time.time())
-        filename = "ddpg-"+gamename+"-"+str(timenow.tm_mday)+"-seed-"+str(seed)+"-"
+        filename = "ddpg-"+gamename+"-seed-"+str(seed)+"-"
         torch.save(self.actor.state_dict(), os.path.join(args.model_path, filename+"-actor.pt"))
         torch.save(self.critic.state_dict(), os.path.join(args.model_path, filename+'-critic.pt'))
         try:

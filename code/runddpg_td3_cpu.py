@@ -51,7 +51,7 @@ def evaluate_policy(env, policy, eval_episodes=10):
     return avg_reward
 
 
-@ray.remote(num_gpus=0.1)
+@ray.remote
 def main(gamename, seed, algo, task_id):
     env = gym.make(gamename)
     print("start running task", task_id)
@@ -132,8 +132,9 @@ def run_all():
     idx = 0
     for seed in seed_list:
         for env in envs_list:
-            job_list.append(main.remote(env, seed, algo, idx))
-            idx += 1
+            for algo in algo_list:
+                job_list.append(main.remote(env, seed, algo, idx))
+                idx += 1
     for idx, value_id in enumerate(job_list):
         print("task", idx, ray.get(value_id))
 
@@ -141,6 +142,5 @@ def run_all():
 if __name__ == '__main__':
     # object_store_memory: 80G
     # redis_max_memory: 40G
-    #ray.init(num_cpus=20, num_gpus=2, object_store_memory=85899345920, redis_max_memory=42949672960)
-    ray.init(num_cpus=20, object_store_memory=1024*1024*1024*40, redis_max_memory=1024*1024*1024*20)
+    ray.init(num_cpus=44, object_store_memory=1024*1024*1024*40, redis_max_memory=1024*1024*1024*20)
     run_all()

@@ -1,11 +1,10 @@
-
 import os
 import torch
 import time
 import click
 import gym
-import ray
 import numpy as np
+from torch import multiprocessing as mp
 
 from util.tools import check_env
 from util.data import Data
@@ -51,7 +50,6 @@ def evaluate_policy(env, policy, eval_episodes=10):
     return avg_reward
 
 
-@ray.remote(num_gpus=0.1)
 def main(gamename, seed, algo, task_id):
     env = gym.make(gamename)
     print("start running task", task_id)
@@ -110,15 +108,6 @@ def main(gamename, seed, algo, task_id):
     return "Over"
 
 
-@ray.remote
-def main2(gamename, seed, algo, task_id):
-    print("start running task", task_id)
-    env = gym.make(gamename)
-    return True
-
-
-#@click.command()
-#@click.option("--algo", type=click.Choice(['ddpg', 'td3']))
 def run_all():
     envs_list = ['Ant-v2', 'HalfCheetah-v2', 'Hopper-v2', 'Humanoid-v2',
                  'HumanoidStandup-v2','InvertedDoublePendulum-v2',
@@ -130,17 +119,21 @@ def run_all():
     algo = 'ddpg'
 
     idx = 0
-    for seed in seed_list:
-        for env in envs_list:
-            job_list.append(main.remote(env, seed, algo, idx))
+    pool = mp.Pool(processes=20)
+    for env_name in envs_list:
+        env = gym.make(env_name)
+        for seed in seed_list:
+            job_list.append(pool.apply_async(env, seed, algo, idx))
             idx += 1
-    for idx, value_id in enumerate(job_list):
-        print("task", idx, ray.get(value_id))
 
+        for job in job_list:
+            print(job.get())
 
 if __name__ == '__main__':
-    # object_store_memory: 80G
-    # redis_max_memory: 40G
-    #ray.init(num_cpus=20, num_gpus=2, object_store_memory=85899345920, redis_max_memory=42949672960)
-    ray.init(num_cpus=20, object_store_memory=1024*1024*1024*40, redis_max_memory=1024*1024*1024*20)
     run_all()
+        
+
+
+
+
+

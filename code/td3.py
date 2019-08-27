@@ -20,7 +20,6 @@ from util.tools import soft_update
 
 cpu_device = torch.device("cpu")
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-device = cpu_device
 
 
 class Policy(nn.Module):
@@ -150,7 +149,7 @@ class TD3Trainer(object):
             # 0 means over
             done = torch.Tensor(done_arr).reshape(args.batchsize, 1).to(device)
             #------- update critic -----------
-            epsilon = torch.randn_like(new_action) * args.sigma_clamp
+            epsilon = torch.randn_like(action) * args.sigma_clamp
             epsilon = epsilon.clamp(-args.c, args.c)
             # target policy smoothing
             new_action = (self.target_actor(next_state)+epsilon).clamp(-self.action_lim, self.action_lim)
@@ -159,7 +158,7 @@ class TD3Trainer(object):
             y_target = reward + args.Gamma * done * torch.min(q1, q2).detach()
             
             y1_pred, y2_pred = self.critic(state, action)
-            critic_loss = F.mse_loss(y_pred1, y_target) + F.mse_loss(y_pred2, y_target)
+            critic_loss = F.mse_loss(y1_pred, y_target) + F.mse_loss(y1_pred, y_target)
             self.critic_optm.zero_grad()
             critic_loss.backward()
             self.critic_optm.step()
@@ -178,7 +177,7 @@ class TD3Trainer(object):
 
     def save_model(self, gamename, reward_list, seed):
         timenow = time.localtime(time.time())
-        filename = "td3-"+gamename+str(timenow.tm_mday)+"-seed-"+str(seed)+"-"
+        filename = "td3-"+gamename+"-seed-"+str(seed)+"-"
         torch.save(self.actor.state_dict(), os.path.join(args.model_path, filename+"-actor.pt"))
         torch.save(self.critic.state_dict(), os.path.join(args.model_path, filename+'-critic.pt'))
         try:
