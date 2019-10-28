@@ -26,8 +26,7 @@ def evaluate_policy(env, policy, eval_episodes=10):
 
     avg_reward /= eval_episodes
 
-    print("---------------------------------
-------")
+    print("---------------------------------------")
     print("Evaluation over %d episodes: %f" % (eval_episodes, avg_reward))
     print("---------------------------------------")
     return avg_reward
