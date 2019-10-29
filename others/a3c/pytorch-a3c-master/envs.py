@@ -25,6 +25,15 @@ def _process_frame42(frame):
     frame = np.moveaxis(frame, -1, 0)
     return frame
 
+def _process_frame84(frame):
+    frame = frame[34:34 + 160, :160]
+    # Resize by half, then down to 84 (essentially mipmapping). 
+    frame = cv2.resize(frame, (84, 84))
+    frame = frame.mean(2, keepdims=True)
+    frame = frame.astype(np.float32)
+    frame *= (1.0 / 255.0)
+    frame = np.moveaxis(frame, -1, 0)
+    return frame
 
 class AtariRescale42x42(gym.ObservationWrapper):
     def __init__(self, env=None):
@@ -32,7 +41,10 @@ class AtariRescale42x42(gym.ObservationWrapper):
         self.observation_space = Box(0.0, 1.0, [1, 42, 42])
 
     def _observation(self, observation):
-        return _process_frame42(observation)
+        return _process_frame84(observation)
+
+    def observation(self, observation):
+        return self._observation(observation)
 
 
 class NormalizedEnv(gym.ObservationWrapper):
@@ -54,3 +66,6 @@ class NormalizedEnv(gym.ObservationWrapper):
         unbiased_std = self.state_std / (1 - pow(self.alpha, self.num_steps))
 
         return (observation - unbiased_mean) / (unbiased_std + 1e-8)
+
+    def observation(self, observation):
+        return self._observation(observation)

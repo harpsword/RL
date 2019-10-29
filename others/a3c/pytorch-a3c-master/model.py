@@ -31,12 +31,10 @@ def weights_init(m):
 class ActorCritic(torch.nn.Module):
     def __init__(self, num_inputs, action_space):
         super(ActorCritic, self).__init__()
-        self.conv1 = nn.Conv2d(num_inputs, 32, 3, stride=2, padding=1)
-        self.conv2 = nn.Conv2d(32, 32, 3, stride=2, padding=1)
-        self.conv3 = nn.Conv2d(32, 32, 3, stride=2, padding=1)
-        self.conv4 = nn.Conv2d(32, 32, 3, stride=2, padding=1)
+        self.conv1 = nn.Conv2d(1, 16, kernel_size=8, stride=4)
+        self.conv2 = nn.Conv2d(16, 32, kernel_size=4, stride=2)
 
-        self.lstm = nn.LSTMCell(32 * 3 * 3, 256)
+        self.fc1 = nn.Linear(9*9*32, 256)
 
         num_outputs = action_space.n
         self.critic_linear = nn.Linear(256, 1)
@@ -50,20 +48,15 @@ class ActorCritic(torch.nn.Module):
             self.critic_linear.weight.data, 1.0)
         self.critic_linear.bias.data.fill_(0)
 
-        self.lstm.bias_ih.data.fill_(0)
-        self.lstm.bias_hh.data.fill_(0)
-
         self.train()
 
     def forward(self, inputs):
-        inputs, (hx, cx) = inputs
-        x = F.elu(self.conv1(inputs))
-        x = F.elu(self.conv2(x))
-        x = F.elu(self.conv3(x))
-        x = F.elu(self.conv4(x))
+        x = F.relu(self.conv1(inputs))
+        x = F.relu(self.conv2(x))
+        x = x.view(-1, 32 * 9 * 9)
+        x = F.relu(self.fc1(x))
+        return self.critic_linear(x), self.actor_linear(x)
 
-        x = x.view(-1, 32 * 3 * 3)
-        hx, cx = self.lstm(x, (hx, cx))
-        x = hx
-
-        return self.critic_linear(x), self.actor_linear(x), (hx, cx)
+def save_model(model, args):
+    torch.save(model.state_dict(), "./models/"+str(args.seed)+"-"+args.env_name+"-model.pt")
+    print("saved model")

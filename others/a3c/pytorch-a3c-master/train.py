@@ -21,7 +21,6 @@ def train(rank, args, shared_model, counter, lock, optimizer=None):
     env.seed(args.seed + rank)
 
     model = ActorCritic(env.observation_space.shape[0], env.action_space)
-
     if optimizer is None:
         optimizer = optim.Adam(shared_model.parameters(), lr=args.lr)
 
@@ -32,15 +31,9 @@ def train(rank, args, shared_model, counter, lock, optimizer=None):
     done = True
 
     episode_length = 0
-    while True:
+    while True and counter.value < args.max_steps:
         # Sync with the shared model
         model.load_state_dict(shared_model.state_dict())
-        if done:
-            cx = torch.zeros(1, 256)
-            hx = torch.zeros(1, 256)
-        else:
-            cx = cx.detach()
-            hx = hx.detach()
 
         values = []
         log_probs = []
@@ -49,8 +42,7 @@ def train(rank, args, shared_model, counter, lock, optimizer=None):
 
         for step in range(args.num_steps):
             episode_length += 1
-            value, logit, (hx, cx) = model((state.unsqueeze(0),
-                                            (hx, cx)))
+            value, logit = model(state.unsqueeze(0))
             prob = F.softmax(logit, dim=-1)
             log_prob = F.log_softmax(logit, dim=-1)
             entropy = -(log_prob * prob).sum(1, keepdim=True)
@@ -80,7 +72,7 @@ def train(rank, args, shared_model, counter, lock, optimizer=None):
 
         R = torch.zeros(1, 1)
         if not done:
-            value, _, _ = model((state.unsqueeze(0), (hx, cx)))
+            value, _ = model(state.unsqueeze(0))
             R = value.detach()
 
         values.append(R)
