@@ -85,7 +85,7 @@ def test(rank, args, shared_model, counter):
             model.load_state_dict(shared_model.state_dict())
 
         if done and counter.value > args.max_steps:
-            test_final(shared_model, env)
+            test_final(shared_model, env, args)
             save_model(shared_model, args)
             exit()
 

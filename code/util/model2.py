@@ -29,19 +29,16 @@ class AbstractPolicy(nn.Module):
                 nn.init.constant(m.bias, 0)
 
 
-class Policy(AbstractPolicy):
+class DeterministicPolicy(AbstractPolicy):
 
-    def __init__(self, state_dim, action_dim, action_lim):
+    def __init__(self, state_dim, action_dim, action_lim, fc1_out=400, fc2_out=300):
         super(Policy, self).__init__()
         self.state_dim = state_dim
         self.action_dim = action_dim
         self.action_lim = action_lim
-        self.fc1 = nn.Linear(self.state_dim, 400)
-
-        self.fc2_in = 400
-        self.fc2 = nn.Linear(self.fc2_in, 300)
-
-        self.fc3 = nn.Linear(300, self.action_dim)
+        self.fc1 = nn.Linear(self.state_dim, fc1_out)
+        self.fc2 = nn.Linear(fc1_out, fc2_out)
+        self.fc3 = nn.Linear(fc2_out, self.action_dim)
 
     def forward(self, x):
         x = F.relu(self.fc1(x))
@@ -51,14 +48,17 @@ class Policy(AbstractPolicy):
 
 
 class Value(nn.Module):
-    def __init__(self, state_dim, action_dim):
+    """
+    Q value for state and action
+    """
+    def __init__(self, state_dim, action_dim, fc1_out=400, fc2_out=300):
         super(Value, self).__init__()
         self.state_dim = state_dim
         self.action_dim = action_dim
         fc1_input = state_dim + action_dim
-        self.fc1 = nn.Linear(fc1_input, 400)
-        self.fc2 = nn.Linear(400, 300)
-        self.fc3 = nn.Linear(300, 1)
+        self.fc1 = nn.Linear(fc1_input, fc1_out)
+        self.fc2 = nn.Linear(fc1_out, fc2_out)
+        self.fc3 = nn.Linear(fc2_out, 1)
 
     def forward(self, x, a):
         xi = torch.cat([x, a], dim=1)

@@ -16,8 +16,8 @@ from train import train
 # https://github.com/pytorch/examples/tree/master/mnist_hogwild
 # Training settings
 parser = argparse.ArgumentParser(description='A3C')
-parser.add_argument('--lr', type=float, default=0.0001,
-                    help='learning rate (default: 0.0001)')
+parser.add_argument('--lr', type=float, default=0.001,
+                    help='learning rate (default: 0.001)')
 parser.add_argument('--gamma', type=float, default=0.99,
                     help='discount factor for rewards (default: 0.99)')
 parser.add_argument('--gae-lambda', type=float, default=1.00,
@@ -40,7 +40,7 @@ parser.add_argument('--env-name', default='PongDeterministic-v4',
                     help='environment to train on (default: PongDeterministic-v4)')
 parser.add_argument('--no-shared', default=False,
                     help='use an optimizer without shared momentum.')
-parser.add_argument('--max-steps', type=int, default=200*10**6,
+parser.add_argument('--max-steps', type=int, default=50*10**6,
                     help='how many steps algorithm will use')
 
 

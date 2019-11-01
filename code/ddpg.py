@@ -17,7 +17,8 @@ import numpy as np
 import torch.nn.functional as F
 
 from util.data import Data
-from util.model2 import Policy, Value
+from util.model2 import DeterministicPolicy as Policy
+from util.model2 import Value
 from util.tools import soft_update
 
 cpu_device = torch.device("cpu")
