@@ -31,7 +31,7 @@ def weights_init(m):
 class ActorCritic(torch.nn.Module):
     def __init__(self, num_inputs, action_space):
         super(ActorCritic, self).__init__()
-        self.conv1 = nn.Conv2d(1, 16, kernel_size=8, stride=4)
+        self.conv1 = nn.Conv2d(4, 16, kernel_size=8, stride=4)
         self.conv2 = nn.Conv2d(16, 32, kernel_size=4, stride=2)
 
         self.fc1 = nn.Linear(9*9*32, 256)

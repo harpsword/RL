@@ -7,6 +7,7 @@ import torch
 import torch.multiprocessing as mp
 
 import my_optim
+import rmsprop
 from envs import create_atari_env
 from model import ActorCritic
 from test import test
@@ -32,7 +33,7 @@ parser.add_argument('--seed', type=int, default=1,
                     help='random seed (default: 1)')
 parser.add_argument('--num-processes', type=int, default=4,
                     help='how many training processes to use (default: 4)')
-parser.add_argument('--num-steps', type=int, default=20,
+parser.add_argument('--num-steps', type=int, default=5,
                     help='number of forward steps in A3C (default: 20)')
 parser.add_argument('--max-episode-length', type=int, default=1000000,
                     help='maximum length of an episode (default: 1000000)')
@@ -42,6 +43,8 @@ parser.add_argument('--no-shared', default=False,
                     help='use an optimizer without shared momentum.')
 parser.add_argument('--max-steps', type=int, default=50*10**6,
                     help='how many steps algorithm will use')
+parser.add_argument('--frameskip', type=int, default=4,
+                    help='how many steps the action will repeat')
 
 
 if __name__ == '__main__':
@@ -59,7 +62,8 @@ if __name__ == '__main__':
     if args.no_shared:
         optimizer = None
     else:
-        optimizer = my_optim.SharedAdam(shared_model.parameters(), lr=args.lr)
+        optimizer = rmsprop.SharedRMSProp(shared_model.parameters(), lr=args.lr)
+        #optimizer = my_optim.SharedAdam(shared_model.parameters(), lr=args.lr)
         optimizer.share_memory()
 
     processes = []

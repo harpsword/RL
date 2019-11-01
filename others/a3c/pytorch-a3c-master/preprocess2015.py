@@ -34,6 +34,9 @@ class ProcessUnit(object):
         self.length = length * frame_skip
         self.frame_list = deque(maxlen=self.length)
 
+    def clear(self):
+        self.frame_list.clear()
+
     def step(self, x):
         # insert in left, so the element of index 0 is newest
         self.frame_list.appendleft(x)

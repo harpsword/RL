@@ -1,9 +1,11 @@
 import torch
 import torch.nn.functional as F
 import torch.optim as optim
+import numpy as np
 
 from envs import create_atari_env
 from model import ActorCritic
+from preprocess2015 import ProcessUnit
 
 
 def ensure_shared_grads(model, shared_model):
@@ -13,12 +15,24 @@ def ensure_shared_grads(model, shared_model):
             return
         shared_param._grad = param.grad
 
+def start_game(env, pu):
+    no_op_frames = np.random.randint(1, 30)
+    pu.clear()
+    obs = env.reset()
+    pu.step(obs)
+    for i in range(no_op_frames):
+        obs, r, done, _ = env.step(0)
+        pu.step(obs)
+        if done:
+            return False
+    return True
 
 def train(rank, args, shared_model, counter, lock, optimizer=None):
     torch.manual_seed(args.seed + rank)
 
     env = create_atari_env(args.env_name)
     env.seed(args.seed + rank)
+    pu = ProcessUnit(4, args.frameskip)
 
     model = ActorCritic(env.observation_space.shape[0], env.action_space)
     if optimizer is None:
@@ -26,10 +40,11 @@ def train(rank, args, shared_model, counter, lock, optimizer=None):
 
     model.train()
 
-    state = env.reset()
-    state = torch.from_numpy(state)
-    done = True
+    p = False
+    while not p:
+        p = start_game(env, pu)
 
+    done = True
     episode_length = 0
     while True and counter.value < args.max_steps:
         # Sync with the shared model
@@ -41,8 +56,9 @@ def train(rank, args, shared_model, counter, lock, optimizer=None):
         entropies = []
 
         for step in range(args.num_steps):
-            episode_length += 1
-            value, logit = model(state.unsqueeze(0))
+            r_ = 0
+            state = pu.to_torch_tensor()
+            value, logit = model(state)
             prob = F.softmax(logit, dim=-1)
             log_prob = F.log_softmax(logit, dim=-1)
             entropy = -(log_prob * prob).sum(1, keepdim=True)
@@ -51,28 +67,33 @@ def train(rank, args, shared_model, counter, lock, optimizer=None):
             action = prob.multinomial(num_samples=1).detach()
             log_prob = log_prob.gather(1, action)
 
-            state, reward, done, _ = env.step(action.numpy())
-            done = done or episode_length >= args.max_episode_length
-            reward = max(min(reward, 1), -1)
+            for idx in range(args.frameskip):
+                episode_length += 1
+                state, reward, done, _ = env.step(action.numpy())
+                r_ += reward
+                pu.step(state)
+                done = done or episode_length >= args.max_episode_length
+                #reward = max(min(reward, 1), -1)
+                with lock:
+                    counter.value += 1
 
-            with lock:
-                counter.value += 1
+                if done:
+                    episode_length = 0
+                    p = False
+                    while not p:
+                        p = start_game(env, pu)
+                    break
 
-            if done:
-                episode_length = 0
-                state = env.reset()
-
-            state = torch.from_numpy(state)
             values.append(value)
             log_probs.append(log_prob)
             rewards.append(reward)
-
             if done:
                 break
 
         R = torch.zeros(1, 1)
+        state = pu.to_torch_tensor()
         if not done:
-            value, _ = model(state.unsqueeze(0))
+            value, _ = model(state)
             R = value.detach()
 
         values.append(R)

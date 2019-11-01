@@ -1,4 +1,5 @@
 import time
+import numpy as np
 from collections import deque
 
 import torch
@@ -6,113 +7,58 @@ import torch.nn.functional as F
 
 from envs import create_atari_env
 from model import ActorCritic, save_model
+from preprocess2015 import ProcessUnit
+from train import start_game
 
-def test_final(model, env, args):
-    state = env.reset()
-    state = torch.from_numpy(state)
-    reward_sum = 0
-    done = True
-
-    start_time = time.time()
-
-    # a quick hack to prevent the agent from stucking
-    actions = deque(maxlen=100)
-    # test 30 times
-    num_episodes_t = 0
-    rewards_count_t = 0
+def test_one(env, pu, model, args):
+    pu.clear()
+    p = False
+    while not p:
+        p = start_game(env, pu)
+    reward = 0
     episode_length = 0
     while True:
-        episode_length += 1
-        # Sync with the shared model
-        if done:
-            model.load_state_dict(shared_model.state_dict())
 
+        state = pu.to_torch_tensor()
         with torch.no_grad():
-            value, logit = model(state.unsqueeze(0))
-        prob = F.softmax(logit, dim=-1)
-        action = prob.max(1, keepdim=True)[1].numpy()
+            _, logit = model(state)
+        prob = F.softmax(logit, dim=1)[0]
+        action = np.argmax(prob).item()
 
-        state, reward, done, _ = env.step(action[0, 0])
-        done = done or episode_length >= args.max_episode_length
-        reward_sum += reward
-
-        # a quick hack to prevent the agent from stucking
-        actions.append(action[0, 0])
-        if actions.count(actions[0]) == actions.maxlen:
-            done = True
-
-        if done:
-            num_episodes += 1
-            rewards_count_t += reward_sum
-
-            if num_episodes > 30:
-                print("final test: 30 times, average reward:{.2f}".format(rewards_count_t/30.0))
-                return
-
-            reward_sum = 0
-            episode_length = 0
-            actions.clear()
-            state = env.reset()
-            time.sleep(60)
-
-        state = torch.from_numpy(state)
-
+        for i in range(args.frameskip):
+            episode_length += 1
+            obs, r, done, _ = env.step(action)
+            pu.step(obs)
+            reward += r
+            done = done or episode_length >= args.max_episode_length
+            if done:
+                return reward, episode_length
 
 def test(rank, args, shared_model, counter):
     torch.manual_seed(args.seed + rank)
 
     env = create_atari_env(args.env_name)
     env.seed(args.seed + rank)
+    pu = ProcessUnit(4, args.frameskip)
 
     model = ActorCritic(env.observation_space.shape[0], env.action_space)
-
     model.eval()
-
-    state = env.reset()
-    state = torch.from_numpy(state)
-    reward_sum = 0
-    done = True
-
     start_time = time.time()
 
-    # a quick hack to prevent the agent from stucking
-    actions = deque(maxlen=100)
-    episode_length = 0
     while True:
-        episode_length += 1
-        # Sync with the shared model
-        if done:
-            model.load_state_dict(shared_model.state_dict())
+        model.load_state_dict(shared_model.state_dict())
 
-        if done and counter.value > args.max_steps:
-            test_final(shared_model, env, args)
-            save_model(shared_model, args)
-            exit()
+        rewards_list = []
+        episode_length_list = []
+        for i in range(30):
+            reward, episode_length = test_one(env, pu, model, args)
+            rewards_list.append(reward)
+            episode_length_list.append(episode_length)
 
-        with torch.no_grad():
-            value, logit = model(state.unsqueeze(0))
-        prob = F.softmax(logit, dim=-1)
-        action = prob.max(1, keepdim=True)[1].numpy()
+        print("Time {}, num steps {}, FPS {:.0f}, episode reward {.2f}, episode length {.2f}".format(
+            time.strftime("%Hh %Mm %Ss",
+                          time.gmtime(time.time() - start_time)),
+            counter.value, counter.value / (time.time() - start_time),
+            np.mean(rewards_list), np.mean(episode_length_list)))
+        time.sleep(10)
 
-        state, reward, done, _ = env.step(action[0, 0])
-        done = done or episode_length >= args.max_episode_length
-        reward_sum += reward
-
-        # a quick hack to prevent the agent from stucking
-        actions.append(action[0, 0])
-        if actions.count(actions[0]) == actions.maxlen:
-            done = True
-
-        if done:
-            print("Time {}, num steps {}, FPS {:.0f}, episode reward {}, episode length {}".format(
-                time.strftime("%Hh %Mm %Ss",
-                              time.gmtime(time.time() - start_time)),
-                counter.value, counter.value / (time.time() - start_time),
-                reward_sum, episode_length))
-            reward_sum = 0
-            episode_length = 0
-            actions.clear()
-            state = env.reset()
-            time.sleep(60)
-
-        state = torch.from_numpy(state)
