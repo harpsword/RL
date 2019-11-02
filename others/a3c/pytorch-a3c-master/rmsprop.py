@@ -45,6 +45,15 @@ class SharedRMSProp(optim.RMSprop):
 
         super(SharedRMSProp, self).__init__(params, lr, alpha, eps, weight_decay, momentum, centered)
 
+        for group in self.param_groups:
+            for p in group['params']:
+                state = self.state[p]
+                state['step'] = torch.zeros(1)
+                state['square_avg'] = p.data.new().resize_as_(p.data).zero_()
+                state['grad_avg'] = p.data.new().resize_as_(p.data).zero_()
+                state['momentum_buffer'] = p.data.new().resize_as_(p.data).zero_()
+
+
     def share_memory(self):
         for group in self.param_groups:
             for p in group['params']:
@@ -75,13 +84,13 @@ class SharedRMSProp(optim.RMSprop):
                 state = self.state[p]
 
                 # State initialization
-                if len(state) == 0:
-                    state['step'] = 0
-                    state['square_avg'] = torch.zeros_like(p.data)
-                    if group['momentum'] > 0:
-                        state['momentum_buffer'] = torch.zeros_like(p.data)
-                    if group['centered']:
-                        state['grad_avg'] = torch.zeros_like(p.data)
+                # if len(state) == 0:
+                #     state['step'] = 0
+                #     state['square_avg'] = torch.zeros_like(p.data)
+                #     if group['momentum'] > 0:
+                #         state['momentum_buffer'] = torch.zeros_like(p.data)
+                #     if group['centered']:
+                #         state['grad_avg'] = torch.zeros_like(p.data)
 
                 square_avg = state['square_avg']
                 alpha = group['alpha']

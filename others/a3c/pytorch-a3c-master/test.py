@@ -45,7 +45,7 @@ def test(rank, args, shared_model, counter):
     model.eval()
     start_time = time.time()
 
-    while True:
+    while True and counter.value < args.max_steps:
         model.load_state_dict(shared_model.state_dict())
 
         rewards_list = []
@@ -55,10 +55,10 @@ def test(rank, args, shared_model, counter):
             rewards_list.append(reward)
             episode_length_list.append(episode_length)
 
-        print("Time {}, num steps {}, FPS {:.0f}, episode reward {.2f}, episode length {.2f}".format(
+        print("Time {}, num steps {}, FPS {:.0f}, episode reward {}, episode length {}".format(
             time.strftime("%Hh %Mm %Ss",
                           time.gmtime(time.time() - start_time)),
             counter.value, counter.value / (time.time() - start_time),
             np.mean(rewards_list), np.mean(episode_length_list)))
-        time.sleep(10)
+        #time.sleep(10)
 
