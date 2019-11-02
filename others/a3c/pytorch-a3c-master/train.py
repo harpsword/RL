@@ -35,6 +35,7 @@ def train(rank, args, shared_model, counter, lock, optimizer=None):
     pu = ProcessUnit(4, args.frameskip)
 
     model = ActorCritic(env.observation_space.shape[0], env.action_space)
+    #print(optimizer)
     if optimizer is None:
         optimizer = optim.Adam(shared_model.parameters(), lr=args.lr)
 
