@@ -38,6 +38,7 @@ def test(rank, args, shared_model, counter):
     torch.manual_seed(args.seed + rank)
 
     env = create_atari_env(args.env_name)
+    env.frameskip = 1
     env.seed(args.seed + rank)
     pu = ProcessUnit(4, args.frameskip)
 
