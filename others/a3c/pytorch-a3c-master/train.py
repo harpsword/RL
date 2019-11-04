@@ -58,7 +58,7 @@ def train(rank, args, shared_model, counter, lock, optimizer=None):
         entropies = []
 
         for step in range(args.num_steps):
-            r_ = 0
+            reward = 0
             state = pu.to_torch_tensor()
             value, logit = model(state)
             prob = F.softmax(logit, dim=-1)
@@ -71,8 +71,8 @@ def train(rank, args, shared_model, counter, lock, optimizer=None):
 
             for idx in range(args.frameskip):
                 episode_length += 1
-                state, reward, done, _ = env.step(action.numpy())
-                r_ += reward
+                state, r__, done, _ = env.step(action.numpy())
+                reward += r__
                 pu.step(state)
                 done = done or episode_length >= args.max_episode_length
                 #reward = max(min(reward, 1), -1)
