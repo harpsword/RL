@@ -71,9 +71,9 @@ def train(rank, args, shared_model, counter, lock, optimizer=None):
 
             for idx in range(args.frameskip):
                 episode_length += 1
-                state, r__, done, _ = env.step(action.numpy())
+                obs, r__, done, _ = env.step(action.numpy())
                 reward += r__
-                pu.step(state)
+                pu.step(obs)
                 done = done or episode_length >= args.max_episode_length
                 #reward = max(min(reward, 1), -1)
                 with lock:
@@ -90,6 +90,7 @@ def train(rank, args, shared_model, counter, lock, optimizer=None):
             log_probs.append(log_prob)
             rewards.append(reward)
             if done:
+                done = False
                 break
 
         R = torch.zeros(1, 1)
