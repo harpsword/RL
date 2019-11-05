@@ -56,8 +56,8 @@ if __name__ == '__main__':
     print("running env:", args.env_name)
     print("lr:", args.lr)
     print("seed:",args.seed)
-    print("max-steps", args.max_steps)
-    print("no-shared", args.no_shared)
+    print("max-steps:", args.max_steps)
+    print("no-shared:", args.no_shared)
     torch.manual_seed(args.seed)
     env = create_atari_env(args.env_name)
     shared_model = ActorCritic(

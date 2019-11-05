@@ -1,6 +1,6 @@
 #!/bin/bash
 
-envs=("Asteroids-v0" "Atlantis-v0" "BankHeist-v0")
+envs=("Gravitar-v0" "IceHockey-v0" "JamesBond-v0")
 
 
 for env in ${envs[@]} 
