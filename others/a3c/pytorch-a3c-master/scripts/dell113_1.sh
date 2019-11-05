@@ -1,6 +1,6 @@
 #!/bin/bash
 
-envs=("Boxing-v0" "Centipede-v0" "ChopperCommand-v0")
+envs=("Kangaroo-v0" "Krull-v0")
 
 
 for env in ${envs[@]} 
