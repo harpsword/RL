@@ -50,6 +50,8 @@ def train(rank, args, shared_model, counter, lock, optimizer=None):
     episode_length = 0
     while True and counter.value < args.max_steps:
         # Sync with the shared model
+        if args.lr_decay:
+            optimizer.decay_lr(counter.value, args.max_steps)
         model.load_state_dict(shared_model.state_dict())
 
         values = []

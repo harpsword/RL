@@ -15,6 +15,7 @@ class SharedAdam(optim.Adam):
                  eps=1e-8,
                  weight_decay=0):
         super(SharedAdam, self).__init__(params, lr, betas, eps, weight_decay)
+        self.lr_backup = lr
 
         for group in self.param_groups:
             for p in group['params']:
@@ -22,6 +23,11 @@ class SharedAdam(optim.Adam):
                 state['step'] = torch.zeros(1)
                 state['exp_avg'] = p.data.new().resize_as_(p.data).zero_()
                 state['exp_avg_sq'] = p.data.new().resize_as_(p.data).zero_()
+
+    def decay_lr(self, now_steps, max_steps):
+        newlr = self.lr_backup * (1-now_steps*1.0/max_steps)
+        for group in self.param_groups:
+            group['lr'] = newlr
 
     def share_memory(self):
         for group in self.param_groups:

@@ -45,6 +45,8 @@ parser.add_argument('--max-steps', type=int, default=50*10**6,
                     help='how many steps algorithm will use')
 parser.add_argument('--frameskip', type=int, default=4,
                     help='how many steps the action will repeat')
+parser.add_argument('--lr-decay', default=False,
+                    help='lr decay or not')
 
 
 if __name__ == '__main__':
