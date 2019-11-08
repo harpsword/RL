@@ -45,7 +45,7 @@ def test(rank, args, shared_model, counter):
     model = ActorCritic(env.observation_space.shape[0], env.action_space)
     model.eval()
     start_time = time.time()
-    best_p = 0
+    best_p = -10000
 
     while True and counter.value < args.max_steps:
         model.load_state_dict(shared_model.state_dict())
