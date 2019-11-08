@@ -64,6 +64,5 @@ def test(rank, args, shared_model, counter):
             counter.value, counter.value / (time.time() - start_time),
             mean_rewards, np.mean(episode_length_list)))
         best_p = mean_rewards if mean_rewards > best_p else best_p
-        time.sleep(30)
     print("best performance:", best_p)
 
