@@ -35,8 +35,8 @@ parser.add_argument('--num-processes', type=int, default=4,
                     help='how many training processes to use (default: 4)')
 parser.add_argument('--num-steps', type=int, default=5,
                     help='number of forward steps in A3C (default: 20)')
-parser.add_argument('--max-episode-length', type=int, default=1000000,
-                    help='maximum length of an episode (default: 1000000)')
+parser.add_argument('--max-episode-length', type=int, default=100000,
+                    help='maximum length of an episode (default: 100000)')
 parser.add_argument('--env-name', default='PongDeterministic-v4',
                     help='environment to train on (default: PongDeterministic-v4)')
 parser.add_argument('--no-shared', default=False,
@@ -47,6 +47,8 @@ parser.add_argument('--frameskip', type=int, default=4,
                     help='how many steps the action will repeat')
 parser.add_argument('--lr-decay', default=False,
                     help='lr decay or not')
+parser.add_argument('--with-gae', default=False,
+                    help='with gae or not')
 
 
 if __name__ == '__main__':

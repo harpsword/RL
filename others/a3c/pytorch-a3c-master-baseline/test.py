@@ -47,7 +47,8 @@ def test(rank, args, shared_model, counter):
     start_time = time.time()
     best_p = -10000
 
-    while True and counter.value < args.max_steps:
+    notOver = False
+    while notOver or counter.value < args.max_steps:
         model.load_state_dict(shared_model.state_dict())
 
         rewards_list = []
@@ -64,5 +65,7 @@ def test(rank, args, shared_model, counter):
             counter.value, counter.value / (time.time() - start_time),
             mean_rewards, np.mean(episode_length_list)))
         best_p = mean_rewards if mean_rewards > best_p else best_p
+        if args.max_steps > counter.value:
+            notOver = not notOver
     print("best performance:", best_p)
 
