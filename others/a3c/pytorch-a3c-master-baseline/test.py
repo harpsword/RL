@@ -65,7 +65,9 @@ def test(rank, args, shared_model, counter):
             counter.value, counter.value / (time.time() - start_time),
             mean_rewards, np.mean(episode_length_list)))
         best_p = mean_rewards if mean_rewards > best_p else best_p
-        if args.max_steps > counter.value:
+        if args.max_steps <= counter.value:
+            print("max step:{}, now:{}".format(args.max_steps, counter.value))
+            print("notOver:", notOver)
             notOver = not notOver
     print("best performance:", best_p)
 
